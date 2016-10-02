@@ -19,7 +19,7 @@ def compute_julia_set(param):
         screen_coord = (step_pos / window_size[1], step_pos % window_size[1])
         u = np.complex128(complex(
             screen_coord[0] / scale[0] + offset[0],
-            ((window_size[1] - screen_coord[1]) / scale[1] + offset[1])
+            screen_coord[1] / scale[1] + offset[1],
         ))
         idx = 0
         while idx < max_iter:
@@ -33,13 +33,12 @@ def compute_julia_set(param):
 
 
 class JuliaSet(Window, ComplexPlane):
-    def __init__(self, args, escape_limit=1e100, max_iter=69):
+    def __init__(self, args, max_iter=32):
         Window.__init__(self, args.winsize)
         self.c = args.c
         self.args = args
-        self.max_iter = 69.
+        self.max_iter = float(max_iter)
         self.color_vector = np.vectorize(grayscale_color_factory(self.max_iter))
-        self.set_view(0j, 3)
         self.set_view(center = args.center, radius = args.radius)
 
     def render(self, frame):
@@ -85,7 +84,7 @@ def main():
         print "Use keyboard arrow to move window, 'a'/'e' to zoom in/out, 'r' to reset view"
         print "Use 'qzsd' to change c value or RETURN key to browse known seeds"
 
-    args = usage_cli_complex(center=0, radius = 3, c=random.choice(seeds))
+    args = usage_cli_complex(center=0, radius=3, c=random.choice(seeds))
     screen = Screen(args.winsize)
     clock = pygame.time.Clock()
     scene = JuliaSet(args)

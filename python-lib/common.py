@@ -56,11 +56,14 @@ def usage_cli_complex(argv = sys.argv[1:], center=0j, radius=3., c=0, seed='', w
     parser.add_argument("--worker", type=int, default=worker, help="number of cpu (%s)" % worker)
     parser.add_argument("--seed", type=str, default=seed, help="str seed")
     parser.add_argument("--c", type=complex, default=c, help="complex seed (%s)" % c)
+    parser.add_argument("--opencl", action="store_const", const=True)
     parser.add_argument("--sampling", type=int, default=1)
     args = parser.parse_args(argv)
     args.winsize = map(lambda x: int(x * args.size), [ 100,  100])
     args.length = args.winsize[0] * args.winsize[1]
     args.pids = set()
+    args.center = np.complex128(args.center)
+    args.radius = np.float64(args.radius)
     if args.worker >= 2:
         args.pool = multiprocessing.Pool(args.worker, lambda : signal.signal(signal.SIGINT, signal.SIG_IGN))
     else:
@@ -87,13 +90,13 @@ class ComplexPlane:
             if radius == 0:
                 raise RuntimeError("Radius can't be null")
             self.radius = radius
-        plane_min = (self.center.real - self.radius, self.center.imag - self.radius)
-        plane_max = (self.center.real + self.radius, self.center.imag + self.radius)
+        self.plane_min = (self.center.real - self.radius, self.center.imag - self.radius)
+        self.plane_max = (self.center.real + self.radius, self.center.imag + self.radius)
         # Coordinate conversion vector
-        self.offset = (plane_min[0], plane_min[1])
+        self.offset = (self.plane_min[0], self.plane_min[1])
         self.scale = (
-            self.window_size[0] / float(plane_max[0] - plane_min[0]),
-            self.window_size[1] / float(plane_max[1] - plane_min[1])
+            self.window_size[0] / float(self.plane_max[0] - self.plane_min[0]),
+            self.window_size[1] / float(self.plane_max[1] - self.plane_min[1])
         )
 
     def compute_chunks(self, method, params):
@@ -114,13 +117,13 @@ class ComplexPlane:
     def convert_to_plane(self, screen_coord):
         return complex(
             screen_coord[0] / self.scale[0] + self.offset[0],
-            ((self.window_size[1] - screen_coord[1]) / self.scale[1] + self.offset[1])
+            screen_coord[1] / self.scale[1] + self.offset[1]
         )
 
     def convert_to_screen(self, plane_coord):
         return [
             int((plane_coord.real - self.offset[0]) * self.scale[0]),
-            self.window_size[1] - int((plane_coord.imag - self.offset[1]) * self.scale[1])
+            int((plane_coord.imag - self.offset[1]) * self.scale[1])
         ]
 
     def draw_complex(self, complex_coord, color = [242]*3):

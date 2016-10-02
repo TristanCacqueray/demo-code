@@ -5,45 +5,73 @@ import os, sys
 sys.path.append("%s/../python-lib" % os.path.dirname(__file__))
 from pygame_utils import *
 
+import pyopencl as cl
 
-def compute_mandelbrot(param):
-    window_size, offset, scale, sampling, max_iter, step_size, chunk = param
 
-    escape_limit = 1e150
+def calc_fractal_opencl(q, maxiter):
+    ctx = cl.create_some_context()
+    queue = cl.CommandQueue(ctx)
 
-    results = np.zeros(step_size, dtype='i4')
-    pos = 0
+    output = np.empty(q.shape, dtype=np.uint16)
 
-    while pos < step_size:
-        step_pos = pos + chunk * step_size
-        screen_coord = (step_pos / window_size[1], step_pos % window_size[1])
-        u = 0
-        c = np.complex128(complex(
-            screen_coord[0] / scale[0] + offset[0],
-            ((window_size[1] - screen_coord[1]) / scale[1] + offset[1])
-        ))
-        idx = 0
-        while idx < max_iter:
-            u = u * u + c
-            if abs(u.real) > escape_limit or abs(u.imag) > escape_limit:
-                break
-            idx += 1
-        results[pos] = idx
-        pos += sampling
-    return results
+    mf = cl.mem_flags
+    q_opencl = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=q)
+    output_opencl = cl.Buffer(ctx, mf.WRITE_ONLY, output.nbytes)
+
+    prg = cl.Program(ctx, """
+    #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+    __kernel void mandelbrot(__global double2 *q,
+                     __global ushort *output, ushort const maxiter)
+    {
+        int gid = get_global_id(0);
+        float nreal, real = 0;
+        float imag = 0;
+        output[gid] = 0;
+        for(int curiter = 0; curiter < maxiter; curiter++) {
+            nreal = real*real - imag*imag + q[gid].x;
+            imag = 2* real*imag + q[gid].y;
+            real = nreal;
+            if (real*real + imag*imag > 4.0f){
+                 output[gid] = curiter;
+                 break;
+            }
+        }
+    }
+    """).build()
+    prg.mandelbrot(queue, output.shape, None, q_opencl,
+                   output_opencl, np.uint16(maxiter))
+    cl.enqueue_copy(queue, output, output_opencl).wait()
+    return output
+
+
+def calc_fractal_python(c, maxiter):
+    output = np.zeros(c.shape)
+    z = np.zeros(c.shape, np.complex128)
+    for it in range(int(maxiter)):
+        notdone = np.less(z.real*z.real + z.imag*z.imag, 4.0)
+        output[notdone] = it
+        z[notdone] = z[notdone]**2 + c[notdone]
+    output[output == maxiter-1] = 0
+    return output
+
 
 class MandelbrotSet(Window, ComplexPlane):
-    def __init__(self, args, max_iter=69):
+    def __init__(self, args, max_iter=4096):
         Window.__init__(self, args.winsize)
         self.max_iter = float(max_iter)
         self.args = args
-        self.color_vector = np.vectorize(grayscale_color_factory(self.max_iter))
         self.color_vector = np.vectorize(grayscale_color_factory(self.max_iter))
         self.set_view(center = args.center, radius = args.radius)
 
     def render(self, frame):
         start_time = time.time()
-        nparray = self.compute_chunks(compute_mandelbrot, [self.max_iter])
+        x = np.linspace(self.plane_min[0], self.plane_max[0], self.window_size[0])
+        y = np.linspace(self.plane_min[1], self.plane_max[1], self.window_size[1]) * 1j
+        q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
+        if self.args.opencl:
+            nparray = calc_fractal_opencl(q, self.max_iter)
+        else:
+            nparray = calc_fractal_python(q, self.max_iter)
         self.blit(self.color_vector(nparray))
         self.draw_axis()
         print "%04d: %.2f sec: ./mandelbrot_set.py --center '%s' --radius '%s'" % (frame, time.time() - start_time, self.center, self.radius)
@@ -81,9 +109,9 @@ def main():
                 scene_coord = scene.convert_to_plane(e.pos)
                 if e.button in (1, 3):
                     if e.button == 1:
-                        step = 0.5
+                        step = 3/4.0
                     else:
-                        step = 1.5
+                        step = 4/3.0
                     scene.set_view(center = scene_coord, radius = scene.radius * step)
                     redraw = True
                 else:
@@ -95,8 +123,8 @@ def main():
                 if e.key in (K_LEFT,K_RIGHT,K_DOWN,K_UP):
                     if   e.key == K_LEFT:  step = -10/scene.scale[0]
                     elif e.key == K_RIGHT: step = +10/scene.scale[0]
-                    elif e.key == K_DOWN:  step = complex(0, -10/scene.scale[1])
-                    elif e.key == K_UP:    step = complex(0,  10/scene.scale[1])
+                    elif e.key == K_DOWN:  step = complex(0,  10/scene.scale[1])
+                    elif e.key == K_UP:    step = complex(0, -10/scene.scale[1])
                     scene.set_view(center = scene.center + step)
                 elif e.key == K_r:
                     scene.set_view(center = 0j, radius = 1.5)
