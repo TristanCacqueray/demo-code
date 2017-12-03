@@ -1,11 +1,26 @@
 #!/usr/bin/env python
 # Licensed under the Apache License, Version 2.0
 
-import os, sys
-sys.path.append("%s/../python-lib" % os.path.dirname(__file__))
-from pygame_utils import *
+import os
+import sys
+import time
+import numpy as np
+import pygame
+import subprocess
+from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, K_ESCAPE
+from pygame.locals import K_a, K_e, K_r, K_p
+from pygame.locals import K_LEFT, K_RIGHT, K_DOWN, K_UP
+try:
+    sys.path.append("%s/../python-lib" % os.path.dirname(__file__))
+    from pygame_utils import Screen, Window, ComplexPlane
+    from common import usage_cli_complex, run_main
+except ImportError:
+    raise
 
-import pyopencl as cl
+try:
+    import pyopencl as cl
+except ImportError:
+    print("OpenCL is disabled")
 
 
 def calc_fractal_opencl(q, maxiter):
@@ -24,8 +39,8 @@ def calc_fractal_opencl(q, maxiter):
                      __global ushort *output, ushort const maxiter)
     {
         int gid = get_global_id(0);
-        float nreal, real = 0;
-        float imag = 0;
+        double nreal, real = 0;
+        double imag = 0;
         output[gid] = 0;
         for(int curiter = 0; curiter < maxiter; curiter++) {
             nreal = real*real - imag*imag + q[gid].x;
@@ -56,17 +71,19 @@ def calc_fractal_python(c, maxiter):
 
 
 class MandelbrotSet(Window, ComplexPlane):
-    def __init__(self, args, max_iter=4096):
+    def __init__(self, args):
         Window.__init__(self, args.winsize)
-        self.max_iter = float(max_iter)
+        self.max_iter = args.max_iter
         self.args = args
-        self.color_vector = np.vectorize(grayscale_color_factory(self.max_iter))
-        self.set_view(center = args.center, radius = args.radius)
+        self.color_vector = np.vectorize(args.color(self.max_iter))
+        self.set_view(center=args.center, radius=args.radius)
 
     def render(self, frame):
         start_time = time.time()
-        x = np.linspace(self.plane_min[0], self.plane_max[0], self.window_size[0])
-        y = np.linspace(self.plane_min[1], self.plane_max[1], self.window_size[1]) * 1j
+        x = np.linspace(self.plane_min[0], self.plane_max[0],
+                        self.window_size[0])
+        y = np.linspace(self.plane_min[1], self.plane_max[1],
+                        self.window_size[1]) * 1j
         q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
         if self.args.opencl:
             nparray = calc_fractal_opencl(q, self.max_iter)
@@ -74,18 +91,23 @@ class MandelbrotSet(Window, ComplexPlane):
             nparray = calc_fractal_python(q, self.max_iter)
         self.blit(self.color_vector(nparray))
         self.draw_axis()
-        print "%04d: %.2f sec: ./mandelbrot_set.py --center '%s' --radius '%s'" % (frame, time.time() - start_time, self.center, self.radius)
+        print("%04d: %.2f sec: ./mandelbrot_set.py --center '%s' "
+              "--radius '%s'" % (frame, time.time() - start_time, self.center,
+                                 self.radius))
 
 
 def main():
     if len(sys.argv) <= 3:
-        print "MandelbrotSet explorer"
-        print "======================"
-        print ""
-        print "Left/right click to zoom in/out, Middle click to draw JuliaSet"
-        print "Use keyboard arrow to move view and r to reset"
+        print("MandelbrotSet explorer\n"
+              "======================\,"
+              "\n"
+              "Left/right click to zoom in/out, Middle click "
+              "to draw JuliaSet\n"
+              "Press 'p' to capture an image\n"
+              "Use keyboard arrow to move window, 'a'/'e' to zoom in/out, "
+              "'r' to reset view\n")
 
-    args = usage_cli_complex(center=-0.8, radius = 1.3)
+    args = usage_cli_complex(center=-0.8, radius=1.3)
     screen = Screen(args.winsize)
     clock = pygame.time.Clock()
     scene = MandelbrotSet(args)
@@ -112,22 +134,32 @@ def main():
                         step = 3/4.0
                     else:
                         step = 4/3.0
-                    scene.set_view(center = scene_coord, radius = scene.radius * step)
+                    scene.set_view(center=scene_coord,
+                                   radius=scene.radius * step)
                     redraw = True
                 else:
-                    args.pids.add(subprocess.Popen(["./julia_set.py", "--c", str(scene_coord)]))
+                    args.pids.add(subprocess.Popen(
+                        ["./julia_set.py", "--c", str(scene_coord)]))
             else:
                 if e.key == K_ESCAPE:
                     return
+                if e.key == K_p:
+                    screen.capture("./", time.time())
                 redraw = True
-                if e.key in (K_LEFT,K_RIGHT,K_DOWN,K_UP):
+                if e.key in (K_LEFT, K_RIGHT, K_DOWN, K_UP):
                     if   e.key == K_LEFT:  step = -10/scene.scale[0]
                     elif e.key == K_RIGHT: step = +10/scene.scale[0]
                     elif e.key == K_DOWN:  step = complex(0,  10/scene.scale[1])
                     elif e.key == K_UP:    step = complex(0, -10/scene.scale[1])
-                    scene.set_view(center = scene.center + step)
+                    scene.set_view(center=scene.center + step)
+                elif e.key in (K_a, K_e):
+                    if e.key == K_e:
+                        step = 3/4.0
+                    elif e.key == K_a:
+                        step = 4/3.0
+                    scene.set_view(radius=scene.radius * step)
                 elif e.key == K_r:
-                    scene.set_view(center = 0j, radius = 1.5)
+                    scene.set_view(center=0j, radius=1.5)
                 else:
                     redraw = False
                     print
