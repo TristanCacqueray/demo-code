@@ -84,6 +84,8 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     global args
     parser = argparse.ArgumentParser()
     parser.add_argument("--record", metavar="DIR", help="record frame in png")
+    parser.add_argument("--steps", type=int)
+    parser.add_argument("--skip", default=0, type=int)
     parser.add_argument("--size", type=float, default=2.5,
                         help="render size (2.5)")
     parser.add_argument("--center", type=complex, default=center,
