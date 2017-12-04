@@ -30,6 +30,10 @@ Use keyboard arrow to move view and r to reset
 ```
 ![mandelbrot zoom](render/fractal_mandelbrot_set_zoom.gif)
 
+```shell
+./arithmetic/multiplication_on_a_circle.py
+```
+![multiplication on a circle](render/multiplication_circle.jpg)
 
 ```shell
 ./bifurcational-fractal/markus_lyapunov.py --seed AB
