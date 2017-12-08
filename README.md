@@ -44,3 +44,14 @@ Click the window to center
 Use keyboard arrow to move window, 'a'/'e' to zoom in/out, 'r' to reset view
 ```
 ![AB](render/fractal_markus_lyapunov-AB.png)
+
+
+
+``` shell
+# Render gif with palette
+ffmpeg  -y -framerate 12 -start_number 0 -i %04d.jpg -vf fps=10,scale=320:-1:flags=lanczos,palettegen test.png
+ffmpeg  -y -framerate 1 -start_number 0 -i %04d.jpg -i test.png -filter_complex "fps=10,scale=320:-1:flags=lanczos[x];[x][1:v]paletteuse" output.gif
+
+# Render webm
+ffmpeg  -y -framerate 12 -start_number 0 -i %04d.png -i sound.ogg -c:a libvorbis  -c:v libvpx -threads 4 -b:v 5M /tmp/test.webm
+```

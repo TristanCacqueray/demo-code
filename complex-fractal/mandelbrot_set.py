@@ -142,8 +142,14 @@ def main():
                                    radius=scene.radius * step)
                     redraw = True
                 else:
-                    args.pids.add(subprocess.Popen(
-                        ["./julia_set.py", "--c", str(scene_coord)]))
+                    argv = ["./julia_set.py", "--c", str(scene_coord),
+                            "--colormap", args.colormap,
+                            "--max_iter", str(args.max_iter)]
+                    if args.opencl:
+                        argv.append("--opencl")
+                    if args.sub_radius:
+                        argv.extend(["--radius", str(args.sub_radius)])
+                    args.pids.add(subprocess.Popen(argv))
             else:
                 if e.key == K_ESCAPE:
                     return

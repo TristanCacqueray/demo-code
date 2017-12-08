@@ -8,7 +8,8 @@ import pygame
 import sys
 import time
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, K_ESCAPE, K_RETURN
-from pygame.locals import K_a, K_e, K_z, K_s, K_q, K_d, K_r
+from pygame.locals import K_a, K_e, K_z, K_s, K_q, K_d, K_r, K_p
+from pygame.locals import K_w, K_x, K_c, K_v
 from pygame.locals import K_LEFT, K_RIGHT, K_DOWN, K_UP
 try:
     sys.path.append("%s/../python-lib" % os.path.dirname(__file__))
@@ -16,6 +17,53 @@ try:
     from common import PHI, usage_cli_complex, run_main
 except ImportError:
     raise
+
+try:
+    import pyopencl as cl
+    prg, ctx = None, None
+except ImportError:
+    print("OpenCL is disabled")
+
+
+def compute_julia_opencl(q, maxiter, c):
+    global prg, ctx
+
+    if not prg:
+        ctx = cl.create_some_context()
+        prg = cl.Program(ctx, """
+        #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+        __kernel void julia(__global double2 *q,
+                            __global ushort *output, ushort const maxiter,
+                            double const seed_real, double const seed_imag)
+        {
+            int gid = get_global_id(0);
+            double nreal = 0;
+            double real = q[gid].x;
+            double imag = q[gid].y;
+            output[gid] = 0;
+            for(int curiter = 0; curiter < maxiter; curiter++) {
+                nreal = real*real - imag*imag + seed_real;
+                imag = 2* real*imag + seed_imag;
+                real = nreal;
+                if (real*real + imag*imag > 4.0f){
+                     output[gid] = curiter;
+                     break;
+                }
+           }
+        }""").build()
+    output = np.empty(q.shape, dtype=np.uint16)
+
+    queue = cl.CommandQueue(ctx)
+
+    mf = cl.mem_flags
+    q_opencl = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=q)
+    output_opencl = cl.Buffer(ctx, mf.WRITE_ONLY, output.nbytes)
+
+    prg.julia(queue, output.shape, None, q_opencl,
+              output_opencl, np.uint16(maxiter),
+              np.double(c.real), np.double(c.imag))
+    cl.enqueue_copy(queue, output, output_opencl).wait()
+    return output
 
 
 def compute_julia_set(param):
@@ -45,23 +93,31 @@ def compute_julia_set(param):
 
 
 class JuliaSet(Window, ComplexPlane):
-    def __init__(self, args, max_iter=32):
+    def __init__(self, args):
         Window.__init__(self, args.winsize)
         self.c = args.c
         self.args = args
-        self.max_iter = float(max_iter)
+        self.max_iter = args.max_iter
         self.color_vector = np.vectorize(args.color(self.max_iter))
         self.set_view(center=args.center, radius=args.radius)
 
-    def render(self, frame):
+    def render(self, frame, draw_info=False):
         start_time = time.monotonic()
-        nparray = self.compute_chunks(compute_julia_set,
-                                      [self.max_iter, self.c])
+        if self.args.opencl:
+            x = np.linspace(self.plane_min[0], self.plane_max[0],
+                            self.window_size[0])
+            y = np.linspace(self.plane_min[1], self.plane_max[1],
+                            self.window_size[1]) * 1j
+            q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
+            nparray = compute_julia_opencl(q, self.max_iter, self.c)
+        else:
+            nparray = self.compute_chunks(compute_julia_set,
+                                          [self.max_iter, self.c])
         self.blit(self.color_vector(nparray))
-        self.draw_axis()
-        self.draw_function_msg()
-        self.draw_cpoint()
-        print(self.c)
+        if draw_info:
+            self.draw_axis()
+            self.draw_function_msg()
+            self.draw_cpoint()
         print("%04d: %.2f sec: ./julia_set.py --c '%s' --center '%s' "
               "--radius %s" % (frame, time.monotonic() - start_time, self.c,
                                self.center, self.radius))
@@ -98,6 +154,7 @@ seeds = (
 
 
 def main():
+    args = usage_cli_complex(center=0, radius=3, c=random.choice(seeds))
     if len(sys.argv) <= 3:
         print("JuliaSet explorer\n"
               "=================\n"
@@ -106,15 +163,18 @@ def main():
               "Use keyboard arrow to move window, 'a'/'e' to zoom in/out, "
               "'r' to reset view\n"
               "Use 'qzsd' to change c value or RETURN key to "
-              "browse known seeds")
+              "browse known seeds\n",
+              "Use 'w'/'x' to decrease/increase real c change step\n"
+              "Use 'c'/'v' to decrease/increase imag c change step\n")
 
-    args = usage_cli_complex(center=0, radius=3, c=random.choice(seeds))
     screen = Screen(args.winsize)
     clock = pygame.time.Clock()
     scene = JuliaSet(args)
     screen.add(scene)
     frame = 0
     redraw = True
+    cr_step = 1
+    ci_step = 1
     while True:
         if redraw:
             frame += 1
@@ -143,6 +203,20 @@ def main():
             else:
                 if e.key == K_ESCAPE:
                     exit(0)
+                if e.key == K_p:
+                    screen.capture("./", time.time())
+                if e.key in (K_w, K_x):
+                    d_step = cr_step * 0.5
+                    if e.key == K_w:
+                        d_step *= -1
+                    cr_step += d_step
+                    print("New cr_step:", cr_step)
+                if e.key in (K_c, K_v):
+                    d_step = ci_step * 0.5
+                    if e.key == K_c:
+                        d_step *= -1
+                    ci_step += d_step
+                    print("New ci_step:", ci_step)
                 redraw = True
                 if e.key == K_RETURN:
                     scene.c = random.choice(seeds)
@@ -155,13 +229,13 @@ def main():
                 elif e.key in (K_z, K_s, K_q, K_d):
                     fact = 20
                     if e.key == K_z:
-                        step = complex(0,  fact/scene.scale[1])
+                        step = complex(0,  fact/scene.scale[1] * ci_step)
                     elif e.key == K_s:
-                        step = complex(0, -fact/scene.scale[1])
+                        step = complex(0, -fact/scene.scale[1] * ci_step)
                     elif e.key == K_q:
-                        step = -fact / scene.scale[0]
+                        step = -fact / scene.scale[0] * cr_step
                     elif e.key == K_d:
-                        step = fact / scene.scale[0]
+                        step = fact / scene.scale[0] * cr_step
                     scene.c += step
                 elif e.key in (K_LEFT, K_RIGHT, K_DOWN, K_UP):
                     if e.key == K_LEFT:

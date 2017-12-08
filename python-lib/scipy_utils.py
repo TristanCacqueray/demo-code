@@ -71,7 +71,7 @@ class Filter:
 
 
 class AudioMod:
-    def __init__(self, filename, frames, filter_type, delay=10.0):
+    def __init__(self, filename, frames, filter_type, fadein=6, fadeout=10.0):
         self.frames = frames
         self.mod = np.zeros(frames)
         self.cache_filename = "%s.mod" % filename
@@ -87,13 +87,16 @@ class AudioMod:
             open(self.cache_filename, "w").write("\n".join(
                 map(str, wave_values))+"\n")
         else:
-            wave_values = map(float, open(self.cache_filename).readlines())
+            wave_values = list(map(float,
+                                   open(self.cache_filename).readlines()))
         imp = 0.0
         for i in range(0, self.frames):
             if wave_values[i] >= imp:
-                imp = wave_values[i]
+                delta = (wave_values[i] - imp) / fadein
+                imp += delta
+#                imp = wave_values[i]
             else:
-                delta = (imp - wave_values[i]) / delay
+                delta = (imp - wave_values[i]) / fadeout
                 imp -= delta
             self.mod[i] = imp
 
@@ -110,7 +113,7 @@ class AudioMod:
         # Convert to float array [-1; 1]
         w = np.fromstring(buf, np.int16) / float((2 ** (2 * 8)) / 2)
 
-        step = wav.getnframes() / self.frames + 1
+        step = wav.getnframes() // self.frames + 1
         wave_values = []
         for i in range(0, wav.getnframes(), step):
             wf = w[i:i+step]
@@ -125,7 +128,7 @@ class AudioMod:
         p = subprocess.Popen(['gnuplot'], stdin=subprocess.PIPE)
         open("/tmp/plot", "w").write("\n".join(
             map(lambda x: str(self.get(x)), range(0, self.frames))))
-        p.stdin.write("plot '/tmp/plot' with lines\n")
+        p.stdin.write(b"plot '/tmp/plot' with lines\n")
         p.wait()
 
     def get(self, frame):

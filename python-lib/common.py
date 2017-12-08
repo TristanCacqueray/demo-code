@@ -5,6 +5,7 @@ import argparse
 import cmath
 import math
 import colorsys
+import os
 import sys
 import signal
 import multiprocessing
@@ -53,19 +54,33 @@ def grayscale_color_factory(scale):
     return grayscale_color
 
 
-def log_sin_lightblue(scale):
+def log_sin_lightblue(scale, base=1):
     def color_func(x):
-        if x == 0 or x == scale:
+        if x == 0: # or x == scale:
             return 0
         rlog = abs(math.sin(math.log(math.pow(x + 50, 7))))
         glog = abs(math.sin(math.log(math.pow(x + 50, 7))))
         blog = abs(math.sin(math.log(math.pow(x + 150, 7))))
-        return rgb250(10 + 150 * rlog, 40 + 150 * glog, 100 + 150 * blog)
+        return rgb250(10 + 150 * rlog, 40 + 150 * glog, 100 + 150 * blog * base)
     return color_func
 
+
+def log_sin_lightpurple(scale):
+    def color_func(x):
+        if x == 0 or x == scale:
+            return 0
+        rlog = abs(math.sin(math.log(math.pow(x + 50, 2))))
+        glog = abs(math.sin(math.log(math.pow(x + 50, 2))))
+        blog = abs(math.sin(math.log(math.pow(x + 150, 4))))
+        return rgb250(100 + 100 * rlog, 40 + 120 * glog, 60 + 150 * blog)
+    return color_func
+
+
 ColorMap = {
+    'bright': bright_color_factory,
     'grayscale': grayscale_color_factory,
     'log+sin+lightblue': log_sin_lightblue,
+    'log+sin+lightpurple': log_sin_lightpurple,
 }
 
 # Basic maths
@@ -84,6 +99,9 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     global args
     parser = argparse.ArgumentParser()
     parser.add_argument("--record", metavar="DIR", help="record frame in png")
+    parser.add_argument("--video", action='store_true')
+    parser.add_argument("--frame_start", type=int, default=0)
+    parser.add_argument("--wav")
     parser.add_argument("--steps", type=int)
     parser.add_argument("--skip", default=0, type=int)
     parser.add_argument("--size", type=float, default=2.5,
@@ -92,17 +110,23 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
                         help="plane center(%s)" % center)
     parser.add_argument("--radius", type=float, default=radius,
                         help="plane radius (%s)" % radius)
+    parser.add_argument("--sub-radius", type=float,
+                        help="radius of sub rendering")
     parser.add_argument("--worker", type=int, default=worker,
                         help="number of cpu (%s)" % worker)
     parser.add_argument("--seed", type=str, default=seed,
                         help="str seed")
-    parser.add_argument("--colormap", default="grayscale",
+    parser.add_argument("--colormap",
+                        default=os.environ.get("COLORMAP", "grayscale"),
                         choices=list(ColorMap.keys()))
-    parser.add_argument("--max_iter", default=42, type=float)
+    parser.add_argument("--max_iter", type=int,
+                        default=int(os.environ.get("MAX_ITER", 42)))
     parser.add_argument("--c", type=complex, default=c,
                         help="complex seed (%s)" % c)
-    parser.add_argument("--opencl", action="store_const", const=True)
+    parser.add_argument("--opencl", action="store_const", const=True,
+                        default=bool(os.environ.get("OPENCL", False)))
     parser.add_argument("--sampling", type=int, default=1)
+    parser.add_argument("--anim")
     args = parser.parse_args(argv)
     args.winsize = list(map(lambda x: int(x * args.size), [100,  100]))
     args.length = args.winsize[0] * args.winsize[1]
