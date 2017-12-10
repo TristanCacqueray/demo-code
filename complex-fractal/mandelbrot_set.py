@@ -24,15 +24,15 @@ except ImportError:
     print("OpenCL is disabled")
 
 
-def calc_fractal_opencl(q, maxiter):
+def calc_fractal_opencl(q, maxiter, color="dumb"):
     global prg, ctx
 
     if not prg:
         ctx = cl.create_some_context()
-        prg = cl.Program(ctx, """
+        kernel_src = ["""
         #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
         __kernel void mandelbrot(__global double2 *q,
-                                 __global ushort *output, ushort const maxiter)
+                                 __global uint *output, uint const maxiter)
         {
             int gid = get_global_id(0);
             double nreal, real = 0;
@@ -43,12 +43,15 @@ def calc_fractal_opencl(q, maxiter):
                 imag = 2* real*imag + q[gid].y;
                 real = nreal;
                 if (real*real + imag*imag > 4.0f){
-                     output[gid] = curiter;
-                     break;
-                }
-           }
-        }""").build()
-    output = np.empty(q.shape, dtype=np.uint16)
+        """
+        ]
+        if color == "dumb":
+            # Use curiter as pixel color
+            kernel_src.append("output[gid] = curiter * 1000;")
+
+        kernel_src.append("}}}")
+        prg = cl.Program(ctx, "\n".join(kernel_src)).build()
+    output = np.empty(q.shape, dtype=np.uint32)
 
     queue = cl.CommandQueue(ctx)
 
@@ -57,7 +60,7 @@ def calc_fractal_opencl(q, maxiter):
     output_opencl = cl.Buffer(ctx, mf.WRITE_ONLY, output.nbytes)
 
     prg.mandelbrot(queue, output.shape, None, q_opencl,
-                   output_opencl, np.uint16(maxiter))
+                   output_opencl, np.uint32(maxiter))
     cl.enqueue_copy(queue, output, output_opencl).wait()
     return output
 
@@ -78,6 +81,7 @@ class MandelbrotSet(Window, ComplexPlane):
         Window.__init__(self, args.winsize)
         self.max_iter = args.max_iter
         self.args = args
+        self.color_func = args.color(self.max_iter)
         self.color_vector = np.vectorize(args.color(self.max_iter))
         self.set_view(center=args.center, radius=args.radius)
 
@@ -91,8 +95,8 @@ class MandelbrotSet(Window, ComplexPlane):
         if self.args.opencl:
             nparray = calc_fractal_opencl(q, self.max_iter)
         else:
-            nparray = calc_fractal_python(q, self.max_iter)
-        self.blit(self.color_vector(nparray))
+            nparray = self.color_vector(calc_fractal_python(q, self.max_iter))
+        self.blit(nparray)
         if draw_axis:
             self.draw_axis()
         print("%04d: %.2f sec: ./mandelbrot_set.py --center '%s' "

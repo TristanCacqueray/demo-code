@@ -55,7 +55,7 @@ def grayscale_color_factory(scale):
 
 
 def log_sin_lightblue(scale, base=1):
-    def color_func(x):
+    def color_func(x, y, z):
         if x == 0: # or x == scale:
             return 0
         rlog = abs(math.sin(math.log(math.pow(x + 50, 7))))
@@ -69,14 +69,30 @@ def log_sin_lightpurple(scale):
     def color_func(x):
         if x == 0 or x == scale:
             return 0
+#        x = np.exp(1j*(i + 1 - np.log(np.log(abs(z)))/np.log(2)))
         rlog = abs(math.sin(math.log(math.pow(x + 50, 2))))
         glog = abs(math.sin(math.log(math.pow(x + 50, 2))))
         blog = abs(math.sin(math.log(math.pow(x + 150, 4))))
         return rgb250(100 + 100 * rlog, 40 + 120 * glog, 60 + 150 * blog)
     return color_func
 
+def gradient(scale):
+    color_map = np.zeros(scale, dtype='uint32')
+    def gaussian(x, a, b, c, d=0):
+        return a * math.exp(-(x - b)**2 / (2 * c**2)) + d
+    for x in range(scale):
+        r = int(gaussian(x, 158.8242, 201, 87.0739) + gaussian(x, 158.8242, 402, 87.0739))
+        g = int(gaussian(x, 129.9851, 157.7571, 108.0298) + gaussian(x, 200.6831, 399.4535, 143.6828))
+        b = int(gaussian(x, 231.3135, 206.4774, 201.5447) + gaussian(x, 17.1017, 395.8819, 39.3148))
+        color_map[x] = rgb250(r, g, b)
+    def color_func(x):
+        if x == 0:
+            return 0
+        return color_map[x]
+    return color_func
 
 ColorMap = {
+    'gradient': gradient,
     'bright': bright_color_factory,
     'grayscale': grayscale_color_factory,
     'log+sin+lightblue': log_sin_lightblue,
