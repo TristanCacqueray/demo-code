@@ -14,7 +14,7 @@ from pygame.locals import K_LEFT, K_RIGHT, K_DOWN, K_UP
 try:
     sys.path.append("%s/../python-lib" % os.path.dirname(__file__))
     from pygame_utils import Screen, Window, ComplexPlane
-    from common import PHI, usage_cli_complex, run_main
+    from common import PHI, usage_cli_complex, run_main, gradient, rgb250
 except ImportError:
     raise
 
@@ -25,33 +25,58 @@ except ImportError:
     print("OpenCL is disabled")
 
 
-def compute_julia_opencl(q, maxiter, c):
+def compute_julia_opencl(q, max_iter, c, norm, color_mod):
     global prg, ctx
 
     if not prg:
         ctx = cl.create_some_context()
-        prg = cl.Program(ctx, """
+        prg_src = []
+        num_color = 4096
+        if color_mod == "gradient":
+            colors = gradient(num_color)
+            colors_array = []
+            for idx in range(num_color):
+                colors_array.append(str(colors(idx)))
+            prg_src.append("__constant uint gradient[] = {%s};" %
+                           ",".join(colors_array))
+        prg_src.append("""
         #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+        #pragma OPENCL EXTENSION cl_khr_fp64 : enable
         __kernel void julia(__global double2 *q,
-                            __global ushort *output, ushort const maxiter,
+                            __global uint *output, uint const max_iter,
                             double const seed_real, double const seed_imag)
         {
             int gid = get_global_id(0);
             double nreal = 0;
             double real = q[gid].x;
             double imag = q[gid].y;
+            double modulus = 0;
+            double escape = 32.0f;
+            double mu = 0;
             output[gid] = 0;
-            for(int curiter = 0; curiter < maxiter; curiter++) {
+            for(uint idx = 0; idx < max_iter; idx++) {
                 nreal = real*real - imag*imag + seed_real;
                 imag = 2* real*imag + seed_imag;
                 real = nreal;
-                if (real*real + imag*imag > 4.0f){
-                     output[gid] = curiter;
-                     break;
-                }
-           }
-        }""").build()
-    output = np.empty(q.shape, dtype=np.uint16)
+                modulus = sqrt(imag*imag + real*real);
+                if (modulus > escape){
+        """)
+        if norm == "escape":
+            prg_src.append(
+                "mu = idx - log(log(modulus)) / log(2.0f) + "
+                "log(log(escape)) / log(2.0f);"
+            )
+            prg_src.append("mu = mu / (double)max_iter;")
+        else:
+            prg_src.append("mu = idx / (double)max_iter;")
+        if color_mod == "gradient":
+            prg_src.append("output[gid] = gradient[(int)(mu * %d)];" %
+                           (num_color - 1))
+        elif color_mod == "dumb":
+            prg_src.append("output[gid] = mu * 0xffff;")
+        prg_src.append("break; }}}")
+        prg = cl.Program(ctx, "\n".join(prg_src)).build()
+    output = np.empty(q.shape, dtype=np.uint32)
 
     queue = cl.CommandQueue(ctx)
 
@@ -60,16 +85,21 @@ def compute_julia_opencl(q, maxiter, c):
     output_opencl = cl.Buffer(ctx, mf.WRITE_ONLY, output.nbytes)
 
     prg.julia(queue, output.shape, None, q_opencl,
-              output_opencl, np.uint16(maxiter),
+              output_opencl, np.uint32(max_iter),
               np.double(c.real), np.double(c.imag))
     cl.enqueue_copy(queue, output, output_opencl).wait()
     return output
 
 
 def compute_julia_set(param):
-    window_size, offset, scale, sampling, max_iter, c, step_size, chunk = param
+    window_size, offset, scale, sampling, aa, max_iter, c, norm, color_mod, \
+        step_size, chunk = param
 
-    escape_limit = 1e150
+#    escape_limit = 2.0 ** 40
+    escape_limit = 4.0
+    escape_log = np.log(np.log(escape_limit))/np.log(2)
+    num_color = max_iter * 2
+    colors = gradient(num_color)
 
     results = np.zeros(step_size, dtype='i4')
     pos = 0
@@ -84,10 +114,33 @@ def compute_julia_set(param):
         idx = 0
         while idx < max_iter:
             u = u * u + c
-            if abs(u.real) > escape_limit or abs(u.imag) > escape_limit:
+            modulus = abs(u)
+            if modulus > escape_limit:
                 break
             idx += 1
-        results[pos] = idx
+        mu = 0
+        if idx < max_iter:
+            if norm == "flat":
+                mu = idx / max_iter
+            elif norm == "escape":
+                mu = (idx - np.log(np.log(modulus)) / np.log(2) + escape_log
+                      ) / max_iter
+            elif norm == "obfu":
+                mu = 1 - (((max_iter - idx) - 4 * modulus ** - 0.4) /
+                          max_iter) ** 2
+        else:
+            mu = 0
+        if color_mod == "dumb":
+            results[pos] = mu * 0xffff
+        elif color_mod == "gradient":
+            results[pos] = colors(int(mu * (num_color-1)))
+        elif color_mod == "hot":
+            mu = 1 - mu
+            results[pos] = rgb250(
+                int(mu * 80 + mu ** 9 * 255 - 950 * mu ** 99),
+                int(mu * 70 - 880 * mu**18 + 701 * mu ** 9),
+                int(mu * 255 ** (1 - mu**45 * 2)),
+            )
         pos += sampling
     return results
 
@@ -98,7 +151,7 @@ class JuliaSet(Window, ComplexPlane):
         self.c = args.c
         self.args = args
         self.max_iter = args.max_iter
-        self.color_vector = np.vectorize(args.color(self.max_iter))
+        self.color_mod = args.color
         self.set_view(center=args.center, radius=args.radius)
 
     def render(self, frame, draw_info=False):
@@ -109,18 +162,25 @@ class JuliaSet(Window, ComplexPlane):
             y = np.linspace(self.plane_min[1], self.plane_max[1],
                             self.window_size[1]) * 1j
             q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
-            nparray = compute_julia_opencl(q, self.max_iter, self.c)
+            nparray = compute_julia_opencl(
+                q, self.max_iter, self.c, self.args.norm, self.color_mod)
         else:
-            nparray = self.compute_chunks(compute_julia_set,
-                                          [self.max_iter, self.c])
-        self.blit(self.color_vector(nparray))
+            nparray = self.compute_chunks(
+                compute_julia_set, [
+                    self.args.antialias, self.max_iter, self.c,
+                    self.args.norm, self.color_mod])
+        self.blit(nparray)
         if draw_info:
             self.draw_axis()
             self.draw_function_msg()
             self.draw_cpoint()
-        print("%04d: %.2f sec: ./julia_set.py --c '%s' --center '%s' "
-              "--radius %s" % (frame, time.monotonic() - start_time, self.c,
-                               self.center, self.radius))
+        print("%04d: %.2f sec: ./julia_set.py --max_iter '%s' --c '%s' "
+              "--center '%s' "
+              "--radius %s" % (
+                    frame, time.monotonic() - start_time,
+                    int(self.max_iter),
+                    self.c,
+                    self.center, self.radius))
 
     def draw_function_msg(self):
         if self.c.real >= 0:
@@ -137,6 +197,7 @@ class JuliaSet(Window, ComplexPlane):
 
     def draw_cpoint(self):
         self.draw_complex(self.c, (255, 0, 0))
+
 
 seeds = (
     complex(PHI, PHI),

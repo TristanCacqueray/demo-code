@@ -6,6 +6,7 @@ import sys
 import time
 sys.path.append("%s/../python-lib" % os.path.dirname(__file__))
 from pygame_utils import *
+from common import *
 
 
 def compute_markus_lyapunov(param):
