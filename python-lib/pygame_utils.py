@@ -2,18 +2,19 @@
 # Licensed under the Apache License, Version 2.0
 
 import os
+import math
 import numpy as np
 
-from common import *
+from common import MAX_SHORT, hsv, ComplexPlane, Path
 import pygame
 import pygame.draw
 import pygame.image
-from pygame.locals import *
+from pygame.locals import KEYDOWN, K_ESCAPE
 
 # for headless rendering
 if "XAUTHORITY" not in os.environ:
     os.environ["SDL_VIDEODRIVER"] = "dummy"
-if "AUDIO" not in os.environ:
+if "AUDIO" not in os.environ and "PULSE_SERVER" not in os.environ:
     os.environ["SDL_AUDIODRIVER"] = "dummy"
 
 
@@ -51,14 +52,17 @@ class Screen:
 
 
 class ScreenPart:
-    def __init__(self, window_size):
+    def __init__(self, window_size, use_array=True):
         try:
             self.surface = pygame.Surface(window_size)
-            self.window_size = map(int, window_size)
+            self.window_size = list(map(int, window_size))
             self.length = self.window_size[0] * self.window_size[1]
-            self.pixels = np.zeros(self.length, dtype='i4').reshape(
-                *self.window_size)
-        except:
+            if use_array:
+                self.pixels = np.zeros(self.length, dtype='i4').reshape(
+                    *self.window_size)
+            else:
+                self.pixels = None
+        except Exception:
             print("Invalid window_size", window_size)
             raise
 
@@ -66,26 +70,28 @@ class ScreenPart:
         pygame.surfarray.blit_array(self.surface, nparray.reshape(
             *self.window_size))
 
+
 # Ready to use 'widget'
 class WavGraph(ScreenPart):
     def __init__(self, window_size, frame_size):
         ScreenPart.__init__(self, window_size)
         self.frame_size = frame_size
-        self.wav_step = self.frame_size / self.window_size[1]
-        self.x_range = self.window_size[0] / 2
+        self.wav_step = self.frame_size // self.window_size[1]
+        self.x_range = self.window_size[0] // 2
 
     def render(self, buf):
         # Wav graph
         pixels = np.zeros(self.length, dtype='i4').reshape(*self.window_size)
         for y in range(0, self.window_size[1]):
+            mbuf = np.mean(buf[y * self.wav_step:(y + 1) * self.wav_step])
+            x = int(self.x_range + self.x_range * mbuf / (MAX_SHORT / 2))
+            pixels[x][y] = 0xf1
+            continue
             mbuf = np.mean(buf[y * self.wav_step:(y + 1) * self.wav_step],
                            axis=1)
             left = mbuf[0]
             right = mbuf[1]
             mono = np.mean(mbuf)
-            # pixels[int(self.x_range + ((self.x_range) / 2.) * mono / (MAX_SHORT/2.))][y] = 0xf1
-            # pixels[1 + int(self.x_range-1) * abs(right) / MAX_SHORT][y] = 0x00f100
-            # pixels[self.window_size[0] - 1 - int(self.x_range) * abs(left) / MAX_SHORT][y] = 0xf10000
             for point, offset, color in ((left, -10, 0xf10000),
                                          (right, +10, 0x00f100),
                                          (mono, 0, 0xf1)):
@@ -95,24 +101,101 @@ class WavGraph(ScreenPart):
         self.pixels = pixels
 
 
+class Graph(ScreenPart):
+    def __init__(self, window_size):
+        super().__init__(window_size, use_array=False)
+        self.values = np.zeros(window_size[0])
+
+    def render(self, value):
+        self.surface.fill(0x0)
+        self.values = np.roll(self.values, -1)
+        self.values[-1] = value
+        for x in range(self.window_size[0]):
+            pygame.draw.line(
+                self.surface, 0xfafafa,
+                (x, self.window_size[1]),
+                (x, self.window_size[1] - self.values[x] * self.window_size[1])
+            )
+
+
+class SpectroGraph(ScreenPart):
+    def __init__(self, window_size, frame_size):
+        super().__init__(window_size, use_array=False)
+        self.frame_size = frame_size
+        self.zoom = 1
+        self.decay = 10
+        self.length = self.frame_size // 2
+        self.values = np.zeros(self.length)
+        self.graph_length = min(self.window_size[0] - self.zoom, self.length)
+        print("FFT length: %d" % self.length)
+
+    def render(self, spectrogram):
+        self.surface.fill(0x00000)
+        for x in range(0, self.graph_length, self.zoom):
+            freq_pos = x // self.zoom
+            val = spectrogram.band[freq_pos]
+            if self.values[freq_pos] > val:
+                decay = (self.values[freq_pos] - val) / self.decay
+                val = self.values[freq_pos] - decay
+            self.values[freq_pos] = val
+            for subx in range(self.zoom):
+                pygame.draw.line(
+                    self.surface, 0xfafafa,
+                    (x + subx, self.window_size[1]),
+                    (x + subx, self.window_size[1] - val * self.window_size[1])
+                    )
+
+
+class ColorMod(ScreenPart):
+    def __init__(self, window_size, band, mode="max", base_hue=0.6):
+        super().__init__(window_size, use_array=False)
+        self.band = band
+        self.mode = mode
+        self.base_hue = base_hue
+        self.decay = 20
+        self.prev_val = 0
+        self.values = np.zeros(self.window_size[0]) + self.window_size[1]
+
+    def render(self, spectrogram):
+        self.values = np.roll(self.values, -1)
+        band = spectrogram.band[self.band[0]:self.band[1]]
+        if (band == 0).all():
+            val = 0
+        elif self.mode == "avg":
+            val = np.sum(band) / len(band)
+        elif self.mode == "max":
+            val = np.argmax(band) / len(band)
+        elif self.mode == "mean":
+            val = np.mean(band)
+        if self.prev_val > val:
+            decay = (self.prev_val - val) / self.decay
+            val = self.prev_val - decay
+
+        self.values[-1] = self.window_size[1] - self.window_size[1] * val
+        self.prev_val = val
+        self.surface.fill(hsv(self.base_hue + 0.3 * val, 0.8, 0.5 + 2 * val))
+        for x in range(0, self.window_size[0] - 1):
+            pygame.draw.line(self.surface, 0xfafafa,
+                             (x, self.values[x]),
+                             (x + 1, self.values[x+1]))
+
+
 class Waterfall(ScreenPart):
-    def __init__(self, window_size, frame_size, width=1):
+    def __init__(self, window_size, frame_size, zoom=4):
         ScreenPart.__init__(self, window_size)
         self.frame_size = frame_size
-        self.width = width
+        self.zoom = zoom
 
     def render(self, spectrogram):
         self.pixels = np.roll(self.pixels, -1, axis=0)
-        for y in range(self.window_size[1] - 1, 0, -1):
-            inv_y = self.window_size[1] - y
-            if self.width == 1:
-                point = spectrogram.freq[inv_y]
-            else:
-                if (inv_y + 1) * self.width >= len(spectrogram.freq):
-                    break
-                point = np.mean(spectrogram.freq[int(inv_y * self.width):
-                                                 int((inv_y + 1) * self.width)])
-            self.pixels[-1][y] = hsv(0.5 + 0.3 * point, 0.3 + 0.6 * point, 0.2 + 0.8 * point)
+        for y in range(0, self.window_size[1], self.zoom):
+            inv_y = self.window_size[1] - y - 1
+            point = spectrogram.freq[y // self.zoom]
+            for suby in range(self.zoom):
+                self.pixels[-1][inv_y - suby] = hsv(
+                    0.5 + 0.3 * point,
+                    0.3 + 0.6 * point,
+                    0.2 + 0.8 * point)
 
 
 # Legacy abstraction
@@ -174,7 +257,7 @@ def main(argv):
             plane.draw_complex(point)
 
         for point in path.gen_logs():
-            plane.draw_complex(point, color=(0,96, 96))
+            plane.draw_complex(point, color=(0, 96, 96))
 
         for point in path.gen_sin(0.2 * math.cos(frame / 7.0),
                                   7 * (abs(math.sin(frame / 60.0)))):
@@ -193,8 +276,10 @@ def main(argv):
         frame += 1
         clock.tick(12)
 
+
 if __name__ == "__main__":
     try:
+        import sys
         main(sys.argv)
     except KeyboardInterrupt:
         raise

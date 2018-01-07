@@ -76,20 +76,35 @@ def log_sin_lightpurple(scale):
         return rgb250(100 + 100 * rlog, 40 + 120 * glog, 60 + 150 * blog)
     return color_func
 
+
 def gradient(scale):
     color_map = np.zeros(scale, dtype='uint32')
+
     def gaussian(x, a, b, c, d=0):
         return a * math.exp(-(x - b)**2 / (2 * c**2)) + d
     for x in range(scale):
-        r = int(gaussian(x, 158.8242, 201, 87.0739) + gaussian(x, 158.8242, 402, 87.0739))
-        g = int(gaussian(x, 129.9851, 157.7571, 108.0298) + gaussian(x, 200.6831, 399.4535, 143.6828))
-        b = int(gaussian(x, 231.3135, 206.4774, 201.5447) + gaussian(x, 17.1017, 395.8819, 39.3148))
+        r = int(gaussian(x, 158.8242, 201, 87.0739) +
+                gaussian(x, 158.8242, 402, 87.0739))
+        g = int(gaussian(x, 129.9851, 157.7571, 108.0298) +
+                gaussian(x, 200.6831, 399.4535, 143.6828))
+        b = int(gaussian(x, 231.3135, 206.4774, 201.5447) +
+                gaussian(x, 17.1017, 395.8819, 39.3148))
         color_map[x] = rgb250(r, g, b)
+
     def color_func(x):
-        if x == 0:
-            return 0
         return color_map[x]
     return color_func
+
+
+def gradient2(scale):
+    def color_func(x):
+        if x == scale - 1 or x == scale - 2 or x == 0:
+            return 0
+        return hsv(0.6 + (x / scale) * 0.2,
+                   (1 - (x / scale) * 0.5),
+                   (1 - (x / scale) * 0.5))
+    return color_func
+
 
 ColorMap = {
     'gradient': gradient,
@@ -118,6 +133,9 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     parser.add_argument("--video", action='store_true')
     parser.add_argument("--frame_start", type=int, default=0)
     parser.add_argument("--wav")
+    parser.add_argument("--midi")
+    parser.add_argument("--play", action='store_true')
+    parser.add_argument("--fps", type=int, default=25)
     parser.add_argument("--steps", type=int)
     parser.add_argument("--skip", default=0, type=int)
     parser.add_argument("--size", type=float, default=2.5,
@@ -135,6 +153,9 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     parser.add_argument("--colormap",
                         default=os.environ.get("COLORMAP", "grayscale"),
                         choices=list(ColorMap.keys()))
+    parser.add_argument("--norm", default="escape")
+    parser.add_argument("--color", default="gradient")
+    parser.add_argument("--antialias", default=1, type=int)
     parser.add_argument("--max_iter", type=int,
                         default=int(os.environ.get("MAX_ITER", 42)))
     parser.add_argument("--c", type=complex, default=c,
@@ -156,7 +177,6 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
             signal.SIGINT, signal.SIG_IGN))
     else:
         args.pool = None
-    args.color = ColorMap[args.colormap]
     return args
 
 
@@ -232,6 +252,36 @@ class ComplexPlane:
             (0, center_coord[1]),
             (self.window_size[0], center_coord[1]),
             color=axis_color)
+
+
+# Animation helpers
+class Animation:
+    def __init__(self):
+        # Insert scene length
+        for idx in range(1, len(self.scenes)):
+            length = self.scenes[idx - 1][0] - self.scenes[idx][0]
+            self.scenes[idx].insert(1, length)
+
+    def geomspace(self, start, end):
+        return np.geomspace(start, end, self.scene_length)
+
+    def logspace(self, start, end):
+        return np.logspace(np.log10(start), np.log10(end), self.scene_length)
+
+    def linspace(self, start, end):
+        return np.linspace(start, end, self.scene_length)
+
+    def update(self, frame):
+        for idx in range(len(self.scenes)):
+            if frame >= self.scenes[idx][0]:
+                self.scene_start, self.scene_length, func = self.scenes[idx]
+                self.scene_pos = frame - self.scene_start
+                self.scene_init = self.scene_pos == 0
+                break
+        if idx == len(self.scenes):
+            raise RuntimeError("Couldn't find scene for frame %d" % frame)
+        func(frame)
+        #return func.func_name
 
 
 # Modulation
