@@ -138,6 +138,8 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     parser.add_argument("--fps", type=int, default=25)
     parser.add_argument("--steps", type=int)
     parser.add_argument("--skip", default=0, type=int)
+    parser.add_argument("--gradient",
+                        default="/usr/share/gimp/2.0/gradients/Purples.ggr")
     parser.add_argument("--size", type=float, default=2.5,
                         help="render size (2.5)")
     parser.add_argument("--center", type=complex, default=center,
@@ -177,6 +179,9 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
             signal.SIGINT, signal.SIG_IGN))
     else:
         args.pool = None
+    if args.gradient.endswith(".ggr"):
+        import ggr
+        args.gradient = ggr.GimpGradient(args.gradient)
     return args
 
 

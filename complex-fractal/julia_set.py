@@ -25,18 +25,17 @@ except ImportError:
     print("OpenCL is disabled")
 
 
-def compute_julia_opencl(q, max_iter, c, norm, color_mod):
+def compute_julia_opencl(q, max_iter, c, norm, color, gradient_func=None):
     global prg, ctx
 
     if not prg:
         ctx = cl.create_some_context()
         prg_src = []
         num_color = 4096
-        if color_mod == "gradient":
-            colors = gradient(num_color)
+        if color == "gradient":
             colors_array = []
             for idx in range(num_color):
-                colors_array.append(str(colors(idx)))
+                colors_array.append(str(gradient_func.color(idx/num_color)))
             prg_src.append("__constant uint gradient[] = {%s};" %
                            ",".join(colors_array))
         prg_src.append("""
@@ -69,10 +68,10 @@ def compute_julia_opencl(q, max_iter, c, norm, color_mod):
             prg_src.append("mu = mu / (double)max_iter;")
         else:
             prg_src.append("mu = idx / (double)max_iter;")
-        if color_mod == "gradient":
+        if color == "gradient":
             prg_src.append("output[gid] = gradient[(int)(mu * %d)];" %
                            (num_color - 1))
-        elif color_mod == "dumb":
+        elif color == "dumb":
             prg_src.append("output[gid] = mu * 0xffff;")
         prg_src.append("break; }}}")
         prg = cl.Program(ctx, "\n".join(prg_src)).build()
@@ -92,7 +91,7 @@ def compute_julia_opencl(q, max_iter, c, norm, color_mod):
 
 
 def compute_julia_set(param):
-    window_size, offset, scale, sampling, aa, max_iter, c, norm, color_mod, \
+    window_size, offset, scale, sampling, aa, max_iter, c, norm, color, \
         step_size, chunk = param
 
 #    escape_limit = 2.0 ** 40
@@ -130,11 +129,11 @@ def compute_julia_set(param):
                           max_iter) ** 2
         else:
             mu = 0
-        if color_mod == "dumb":
+        if color == "dumb":
             results[pos] = mu * 0xffff
-        elif color_mod == "gradient":
+        elif color == "gradient":
             results[pos] = colors(int(mu * (num_color-1)))
-        elif color_mod == "hot":
+        elif color == "hot":
             mu = 1 - mu
             results[pos] = rgb250(
                 int(mu * 80 + mu ** 9 * 255 - 950 * mu ** 99),
@@ -151,7 +150,7 @@ class JuliaSet(Window, ComplexPlane):
         self.c = args.c
         self.args = args
         self.max_iter = args.max_iter
-        self.color_mod = args.color
+        self.color = args.color
         self.set_view(center=args.center, radius=args.radius)
 
     def render(self, frame, draw_info=False):
@@ -163,12 +162,13 @@ class JuliaSet(Window, ComplexPlane):
                             self.window_size[1]) * 1j
             q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
             nparray = compute_julia_opencl(
-                q, self.max_iter, self.c, self.args.norm, self.color_mod)
+                q, self.max_iter, self.c, self.args.norm, self.color,
+                self.args.gradient)
         else:
             nparray = self.compute_chunks(
                 compute_julia_set, [
                     self.args.antialias, self.max_iter, self.c,
-                    self.args.norm, self.color_mod])
+                    self.args.norm, self.color])
         self.blit(nparray)
         if draw_info:
             self.draw_axis()

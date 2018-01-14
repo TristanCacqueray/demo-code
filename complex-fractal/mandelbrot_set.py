@@ -24,7 +24,7 @@ except ImportError:
     print("OpenCL is disabled")
 
 
-def calc_fractal_opencl(q, maxiter, norm, color):
+def calc_fractal_opencl(q, maxiter, norm, color, gradient_func=None):
     global prg, ctx
 
     if not prg:
@@ -32,10 +32,9 @@ def calc_fractal_opencl(q, maxiter, norm, color):
         prg_src = []
         num_color = 4096
         if color == "gradient":
-            colors = gradient(num_color)
             colors_array = []
             for idx in range(num_color):
-                colors_array.append(str(colors(idx)))
+                colors_array.append(str(gradient_func.color(idx/num_color)))
             prg_src.append("__constant uint gradient[] = {%s};" %
                            ",".join(colors_array))
         prg_src.append("""
@@ -120,7 +119,8 @@ class MandelbrotSet(Window, ComplexPlane):
         q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
         if self.args.opencl:
             nparray = calc_fractal_opencl(
-                q, self.max_iter, self.args.norm, self.color)
+                q, self.max_iter, self.args.norm, self.color,
+                self.args.gradient)
         else:
             nparray = calc_fractal_python(q, self.max_iter)
         self.blit(nparray)
