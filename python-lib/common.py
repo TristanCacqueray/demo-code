@@ -129,6 +129,7 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
                       worker=multiprocessing.cpu_count()):
     global args
     parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", action='store_true')
     parser.add_argument("--record", metavar="DIR", help="record frame in png")
     parser.add_argument("--video", action='store_true')
     parser.add_argument("--frame_start", type=int, default=0)

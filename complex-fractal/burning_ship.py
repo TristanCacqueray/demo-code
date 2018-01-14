@@ -31,7 +31,7 @@ def calc_fractal_python(c, maxiter):
     return output
 
 
-class MandelbrotSet(Window, ComplexPlane):
+class BurningShipSet(Window, ComplexPlane):
     def __init__(self, args):
         Window.__init__(self, args.winsize)
         self.max_iter = args.max_iter
@@ -48,22 +48,20 @@ class MandelbrotSet(Window, ComplexPlane):
         q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
         if self.args.opencl:
             nparray = calc_fractal_opencl(
-                q, "mandelbrot", self.max_iter, self.args)
+                q, "ship", self.max_iter, self.args)
         else:
             nparray = calc_fractal_python(q, self.max_iter)
         self.blit(nparray)
         if draw_axis:
             self.draw_axis()
-        print("%04d: %.2f sec: ./mandelbrot_set.py --max_iter %s --center '%s'"
-              " --radius '%s'" % (frame, time.time() - start_time,
-                                  self.max_iter,
-                                  self.center,
-                                  self.radius))
+        print("%04d: %.2f sec: ./mandelbrot_set.py --center '%s' "
+              "--radius '%s'" % (frame, time.time() - start_time, self.center,
+                                 self.radius))
 
 
 def main():
     if len(sys.argv) <= 3:
-        print("MandelbrotSet explorer\n"
+        print("BurningShipSet explorer\n"
               "======================\,"
               "\n"
               "Left/right click to zoom in/out, Middle click "
@@ -75,7 +73,7 @@ def main():
     args = usage_cli_complex(center=-0.8, radius=1.3)
     screen = Screen(args.winsize)
     clock = pygame.time.Clock()
-    scene = MandelbrotSet(args)
+    scene = BurningShipSet(args)
     screen.add(scene)
     frame = 0
     redraw = True

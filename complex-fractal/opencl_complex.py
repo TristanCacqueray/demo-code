@@ -15,26 +15,30 @@ def calc_fractal_opencl(q, fractal, maxiter, args, seed=None):
     if not prg:
         ctx = cl.create_some_context()
         prg_src = []
-        num_color = 4096
-        if args.color == "gradient":
+        num_color = 10096
+        if args.color.startswith("gradient"):
             colors_array = []
             for idx in range(num_color):
                 colors_array.append(str(args.gradient.color(idx/num_color)))
             prg_src.append("__constant uint gradient[] = {%s};" %
                            ",".join(colors_array))
 
+        extra_arg = ""
+        init_real_value = "0"
+        init_imag_value = "0"
         if fractal == "julia":
             extra_arg = ", double const seed_real, double const seed_imag"
             init_real_value = "q[gid].x"
             init_imag_value = "q[gid].y"
-            seed_real_value = "seed_real"
-            seed_imag_value = "seed_imag"
+            real_compute = "real * real - imag * imag + seed_real"
+            imag_compute = "2 * real * imag + seed_imag"
+        elif fractal == "ship":
+            real_compute = "fabs(real)*fabs(real) - fabs(imag)*fabs(imag) + " \
+              "q[gid].x"
+            imag_compute = "2 * fabs(real) * fabs(imag) + q[gid].y"
         else:
-            extra_arg = ""
-            init_real_value = "0"
-            init_imag_value = "0"
-            seed_real_value = "q[gid].x"
-            seed_imag_value = "q[gid].y"
+            real_compute = "real * real - imag * imag + q[gid].x"
+            imag_compute = "2 * real * imag + q[gid].y"
         prg_src.append("""
         #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
         #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -50,13 +54,13 @@ def calc_fractal_opencl(q, fractal, maxiter, args, seed=None):
             double mu = 0;
             output[gid] = 0;
             for(int idx = 0; idx < max_iter; idx++) {
-                nreal = real*real - imag*imag + %s;
-                imag = 2* real*imag + %s;
+                nreal = %s;
+                imag = %s;
                 real = nreal;
                 modulus = sqrt(imag*imag + real*real);
                 if (modulus > escape){
         """ % (fractal, extra_arg, init_real_value, init_imag_value,
-               seed_real_value, seed_imag_value))
+               real_compute, imag_compute))
         if args.color_mod == "smooth_escape":
             prg_src.append(
                 "mu = idx - log(log(modulus)) / log(2.0f) + "
@@ -68,12 +72,17 @@ def calc_fractal_opencl(q, fractal, maxiter, args, seed=None):
             prg_src.append("mu = idx / (double)max_iter;")
         if args.color == "gradient":
             prg_src.append("output[gid] = gradient[(int)(mu * %d)];" %
-                           (num_color - 1))
+                           (num_color))
+        elif args.color == "gradient_freq":
+            prg_src.append("output[gid] = gradient[(int)("
+                           "mu * %d * max_iter / 100.0f) %% %d];" % (
+                               num_color, num_color))
         elif args.color == "dumb":
             prg_src.append("output[gid] = mu * 0xffff;")
 
         prg_src.append("break; }}}")
-        print("\n".join(prg_src[1:]))
+        if args.debug:
+            print("\n".join(prg_src[1:]))
         prg = cl.Program(ctx, "\n".join(prg_src)).build()
     output = np.empty(q.shape, dtype=np.uint32)
 
@@ -86,6 +95,9 @@ def calc_fractal_opencl(q, fractal, maxiter, args, seed=None):
     if fractal == "mandelbrot":
         prg.mandelbrot(queue, output.shape, None, q_opencl,
                        output_opencl, np.uint32(maxiter))
+    elif fractal == "ship":
+        prg.ship(queue, output.shape, None, q_opencl,
+                 output_opencl, np.uint32(maxiter))
     elif fractal == "julia":
         prg.julia(queue, output.shape, None, q_opencl,
                   output_opencl, np.uint32(maxiter),
