@@ -17,78 +17,7 @@ try:
 except ImportError:
     raise
 
-try:
-    import pyopencl as cl
-    prg, ctx = None, None
-except ImportError:
-    print("OpenCL is disabled")
-
-
-def calc_fractal_opencl(q, maxiter, norm, color, gradient_func=None):
-    global prg, ctx
-
-    if not prg:
-        ctx = cl.create_some_context()
-        prg_src = []
-        num_color = 4096
-        if color == "gradient":
-            colors_array = []
-            for idx in range(num_color):
-                colors_array.append(str(gradient_func.color(idx/num_color)))
-            prg_src.append("__constant uint gradient[] = {%s};" %
-                           ",".join(colors_array))
-        prg_src.append("""
-        #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
-        #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-        __kernel void mandelbrot(__global double2 *q,
-                                 __global uint *output, uint const max_iter)
-        {
-            int gid = get_global_id(0);
-            double nreal, real = 0;
-            double imag = 0;
-            double modulus = 0;
-            double escape = 2.0f;
-            double mu = 0;
-            output[gid] = 0;
-            for(int idx = 0; idx < max_iter; idx++) {
-                nreal = real*real - imag*imag + q[gid].x;
-                imag = 2* real*imag + q[gid].y;
-                real = nreal;
-                modulus = sqrt(imag*imag + real*real);
-                if (modulus > escape){
-        """)
-        if norm == "escape":
-            prg_src.append(
-                "mu = idx - log(log(modulus)) / log(2.0f) + "
-                "log(log(escape)) / log(2.0f);"
-            )
-            prg_src.append("mu = mu / (double)max_iter;")
-
-        else:
-            prg_src.append("mu = idx / (double)max_iter;")
-        if color == "gradient":
-            prg_src.append("output[gid] = gradient[(int)(mu * %d)];" %
-                           (num_color - 1))
-        elif color == "dumb":
-            prg_src.append("output[gid] = mu * 0xffff;")
-
-        prg_src.append("break; }}}")
-        print("\n".join(prg_src))
-        prg = cl.Program(ctx, "\n".join(prg_src)).build()
-    output = np.empty(q.shape, dtype=np.uint32)
-
-    queue = cl.CommandQueue(ctx)
-
-    mf = cl.mem_flags
-    q_opencl = cl.Buffer(ctx, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=q)
-    output_opencl = cl.Buffer(ctx, mf.WRITE_ONLY, output.nbytes)
-
-    prg.mandelbrot(queue, output.shape, None, q_opencl,
-                   output_opencl, np.uint32(maxiter))
-    cl.enqueue_copy(queue, output, output_opencl).wait()
-#    unique, counts = np.unique(output, return_counts=True)
-#    print(dict(zip(unique, counts)))
-    return output
+from opencl_complex import calc_fractal_opencl
 
 
 def calc_fractal_python(c, maxiter):
@@ -119,8 +48,7 @@ class MandelbrotSet(Window, ComplexPlane):
         q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
         if self.args.opencl:
             nparray = calc_fractal_opencl(
-                q, self.max_iter, self.args.norm, self.color,
-                self.args.gradient)
+                q, "mandelbrot", self.max_iter, self.args)
         else:
             nparray = calc_fractal_python(q, self.max_iter)
         self.blit(nparray)
@@ -174,7 +102,6 @@ def main():
                     redraw = True
                 else:
                     argv = ["./julia_set.py", "--c", str(scene_coord),
-                            "--colormap", args.colormap,
                             "--max_iter", str(args.max_iter)]
                     if args.opencl:
                         argv.append("--opencl")

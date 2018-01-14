@@ -132,13 +132,12 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     parser.add_argument("--record", metavar="DIR", help="record frame in png")
     parser.add_argument("--video", action='store_true')
     parser.add_argument("--frame_start", type=int, default=0)
-    parser.add_argument("--wav")
-    parser.add_argument("--midi")
+    parser.add_argument("--wav", metavar="FILE")
+    parser.add_argument("--midi", metavar="FILE")
     parser.add_argument("--play", action='store_true')
     parser.add_argument("--fps", type=int, default=25)
-    parser.add_argument("--steps", type=int)
-    parser.add_argument("--skip", default=0, type=int)
-    parser.add_argument("--gradient",
+    parser.add_argument("--skip", default=0, type=int, metavar="FRAMES_NUMBER")
+    parser.add_argument("--gradient", metavar="FILE",
                         default="/usr/share/gimp/2.0/gradients/Purples.ggr")
     parser.add_argument("--size", type=float, default=2.5,
                         help="render size (2.5)")
@@ -152,10 +151,7 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
                         help="number of cpu (%s)" % worker)
     parser.add_argument("--seed", type=str, default=seed,
                         help="str seed")
-    parser.add_argument("--colormap",
-                        default=os.environ.get("COLORMAP", "grayscale"),
-                        choices=list(ColorMap.keys()))
-    parser.add_argument("--norm", default="escape")
+    parser.add_argument("--color_mod", default="smooth_escape")
     parser.add_argument("--color", default="gradient")
     parser.add_argument("--antialias", default=1, type=int)
     parser.add_argument("--max_iter", type=int,
@@ -165,7 +161,6 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     parser.add_argument("--opencl", action="store_const", const=True,
                         default=bool(os.environ.get("OPENCL", False)))
     parser.add_argument("--sampling", type=int, default=1)
-    parser.add_argument("--anim")
     args = parser.parse_args(argv)
     args.winsize = list(map(lambda x: int(x * args.size), [100,  100]))
     args.length = args.winsize[0] * args.winsize[1]
