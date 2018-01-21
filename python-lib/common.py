@@ -134,7 +134,9 @@ def usage_cli_complex(argv=sys.argv[1:], center=0j, radius=3., c=0, seed='',
     parser.add_argument("--video", action='store_true')
     parser.add_argument("--frame_start", type=int, default=0)
     parser.add_argument("--wav", metavar="FILE")
+    parser.add_argument("--audio_mod", metavar="FILE")
     parser.add_argument("--midi", metavar="FILE")
+    parser.add_argument("--midi_skip", type=int, default=0)
     parser.add_argument("--play", action='store_true')
     parser.add_argument("--fps", type=int, default=25)
     parser.add_argument("--skip", default=0, type=int, metavar="FRAMES_NUMBER")
@@ -266,8 +268,10 @@ class Animation:
     def geomspace(self, start, end):
         return np.geomspace(start, end, self.scene_length)
 
-    def logspace(self, start, end):
-        return np.logspace(np.log10(start), np.log10(end), self.scene_length)
+    def logspace(self, start, end, length=None):
+        if length is None:
+            length = self.scene_length
+        return np.logspace(np.log10(start), np.log10(end), length)
 
     def linspace(self, start, end):
         return np.linspace(start, end, self.scene_length)

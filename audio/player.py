@@ -68,9 +68,9 @@ def main():
             screen.update()
             pygame.display.update()
             if midi:
-                midi_events = midi.get(frame)
+                midi_events = midi.get(args.midi_skip + frame)
                 if midi_events:
-                    print(midi_events)
+                    print(frame, midi_events)
             frame += 1
 
         for e in pygame.event.get():

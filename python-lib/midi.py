@@ -99,8 +99,8 @@ class Midi:
                         pitch, velocity = read_byte(f), read_byte(f)
 #                        print("NoteOf chan%d %d/%d @ %f" % (
 #                            mchan, pitch, velocity, trk_pos))
-                    elif mtype in (0xB0, 0xC0, 0xD0):
-                        if mtype == 0xB0:
+                    elif mtype in (0xB0, 0xC0, 0xD0, 0xE0):
+                        if mtype == 0xB0 or mtype == 0xE0:
                             ctr = read_byte(f)
                             val = read_byte(f)
                             events.append({'type': 'mod',
@@ -166,5 +166,5 @@ if __name__ == "__main__":
     midi = Midi(sys.argv[1])
     frame = 0
     while True:
-        print(midi.get(frame))
+        print(frame, midi.get(frame))
         frame += 1
