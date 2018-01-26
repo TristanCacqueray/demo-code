@@ -46,6 +46,19 @@ Use keyboard arrow to move window, 'a'/'e' to zoom in/out, 'r' to reset view
 ![AB](render/fractal_markus_lyapunov-AB.png)
 
 
+```shell
+./complex-fractal/burning_ship.py --max-iter 10000 \
+    --center '(-1.6304604008907824-0.012420565496792895j)' \
+    --radius '3.5959077373606217e-10'
+```
+![burningship](render/fractal_burning_ship.jpg)
+
+```shell
+./complex-fractal/burning_julia.py --max-iter 10000 \
+     --c '(-1.4220841661210148-8.470329472543003e-22j)'
+     --radius 0.0169131303409
+```
+![burningjulia](render/fractal_burning_julia.jpg)
 
 ``` shell
 # Render gif with palette

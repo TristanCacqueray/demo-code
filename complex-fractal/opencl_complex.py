@@ -32,6 +32,13 @@ def calc_fractal_opencl(q, fractal, maxiter, args, seed=None):
             init_imag_value = "q[gid].y"
             real_compute = "real * real - imag * imag + seed_real"
             imag_compute = "2 * real * imag + seed_imag"
+        elif fractal == "juliaship":
+            extra_arg = ", double const seed_real, double const seed_imag"
+            init_real_value = "q[gid].x"
+            init_imag_value = "q[gid].y"
+            real_compute = "fabs(real)*fabs(real) - fabs(imag)*fabs(imag) + " \
+                "seed_real"
+            imag_compute = "(2 * fabs(real) * fabs(imag)) + seed_imag"
         elif fractal == "ship":
             real_compute = "fabs(real)*fabs(real) - fabs(imag)*fabs(imag) + " \
               "q[gid].x"
@@ -100,6 +107,10 @@ def calc_fractal_opencl(q, fractal, maxiter, args, seed=None):
                  output_opencl, np.uint32(maxiter))
     elif fractal == "julia":
         prg.julia(queue, output.shape, None, q_opencl,
+                  output_opencl, np.uint32(maxiter),
+                  np.double(seed.real), np.double(seed.imag))
+    elif fractal == "juliaship":
+        prg.juliaship(queue, output.shape, None, q_opencl,
                   output_opencl, np.uint32(maxiter),
                   np.double(seed.real), np.double(seed.imag))
 

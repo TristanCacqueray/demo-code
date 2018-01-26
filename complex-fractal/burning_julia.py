@@ -21,61 +21,7 @@ except ImportError:
 from opencl_complex import calc_fractal_opencl
 
 
-def compute_julia_set(param):
-    window_size, offset, scale, sampling, aa, max_iter, c, norm, color, \
-        step_size, chunk = param
-
-#    escape_limit = 2.0 ** 40
-    escape_limit = 4.0
-    escape_log = np.log(np.log(escape_limit))/np.log(2)
-    num_color = max_iter * 2
-    colors = gradient(num_color)
-
-    results = np.zeros(step_size, dtype='i4')
-    pos = 0
-
-    while pos < step_size:
-        step_pos = pos + chunk * step_size
-        screen_coord = (step_pos / window_size[1], step_pos % window_size[1])
-        u = np.complex128(complex(
-            screen_coord[0] / scale[0] + offset[0],
-            screen_coord[1] / scale[1] + offset[1],
-        ))
-        idx = 0
-        while idx < max_iter:
-            u = u * u + c
-            modulus = abs(u)
-            if modulus > escape_limit:
-                break
-            idx += 1
-        mu = 0
-        if idx < max_iter:
-            if norm == "flat":
-                mu = idx / max_iter
-            elif norm == "escape":
-                mu = (idx - np.log(np.log(modulus)) / np.log(2) + escape_log
-                      ) / max_iter
-            elif norm == "obfu":
-                mu = 1 - (((max_iter - idx) - 4 * modulus ** - 0.4) /
-                          max_iter) ** 2
-        else:
-            mu = 0
-        if color == "dumb":
-            results[pos] = mu * 0xffff
-        elif color == "gradient":
-            results[pos] = colors(int(mu * (num_color-1)))
-        elif color == "hot":
-            mu = 1 - mu
-            results[pos] = rgb250(
-                int(mu * 80 + mu ** 9 * 255 - 950 * mu ** 99),
-                int(mu * 70 - 880 * mu**18 + 701 * mu ** 9),
-                int(mu * 255 ** (1 - mu**45 * 2)),
-            )
-        pos += sampling
-    return results
-
-
-class JuliaSet(Window, ComplexPlane):
+class BurningJuliaSet(Window, ComplexPlane):
     def __init__(self, args):
         Window.__init__(self, args.winsize)
         self.c = args.c
@@ -86,25 +32,19 @@ class JuliaSet(Window, ComplexPlane):
 
     def render(self, frame, draw_info=False):
         start_time = time.monotonic()
-        if self.args.opencl:
-            x = np.linspace(self.plane_min[0], self.plane_max[0],
-                            self.window_size[0])
-            y = np.linspace(self.plane_min[1], self.plane_max[1],
-                            self.window_size[1]) * 1j
-            q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
-            nparray = calc_fractal_opencl(q, "julia", self.max_iter, self.args,
-                                          seed=self.c)
-        else:
-            nparray = self.compute_chunks(
-                compute_julia_set, [
-                    self.args.antialias, self.max_iter, self.c,
-                    self.args.norm, self.color])
+        x = np.linspace(self.plane_min[0], self.plane_max[0],
+                        self.window_size[0])
+        y = np.linspace(self.plane_min[1], self.plane_max[1],
+                        self.window_size[1]) * 1j
+        q = np.ravel(y+x[:, np.newaxis]).astype(np.complex128)
+        nparray = calc_fractal_opencl(q, "juliaship", self.max_iter, self.args,
+                                      seed=self.c)
         self.blit(nparray)
         if draw_info:
             self.draw_axis()
             self.draw_function_msg()
             self.draw_cpoint()
-        print("%04d: %.2f sec: ./julia_set.py --max_iter '%s' --c '%s' "
+        print("%04d: %.2f sec: ./burning_julia.py --max_iter '%s' --c '%s' "
               "--center '%s' "
               "--radius %s" % (
                     frame, time.monotonic() - start_time,
@@ -130,17 +70,18 @@ class JuliaSet(Window, ComplexPlane):
 
 
 seeds = (
-    complex(PHI, PHI),
-    (-0.15000+0.95000j),
-    (-0.64000+0.70000j),
-    (-0.64000+0.50000j),
-    (+0.47000-0.24000j),
-    (-0.77000-0.15000j),
-    (-1.38000-0.09000j),
-    (-1.17000+0.18000j),
-    (-0.08000+0.70000j),
-    (-0.11000+1.00000j),
-    (0.28200+0.48000j),
+    (-1.15 - 0.4j),
+    (-1.15 - 0.4j),
+    (-1 - 1j),
+    (-0.75 - 0.9j),
+    (0 - 1j),
+    (0.675 - 1.15j),
+    (0.87 - 1.52j),
+    (0.975 - 1.175j),
+    (0.29 - 0.29j),
+    (0.425 + 0.25j),
+    (0 + 0.297j),
+    (-0.8 + 0.1j),
 )
 
 
@@ -160,7 +101,7 @@ def main():
 
     screen = Screen(args.winsize)
     clock = pygame.time.Clock()
-    scene = JuliaSet(args)
+    scene = BurningJuliaSet(args)
     screen.add(scene)
     frame = 0
     redraw = True

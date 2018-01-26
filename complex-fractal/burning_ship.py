@@ -101,8 +101,7 @@ def main():
                                    radius=scene.radius * step)
                     redraw = True
                 else:
-                    argv = ["./julia_set.py", "--c", str(scene_coord),
-                            "--max_iter", str(args.max_iter)]
+                    argv = ["./burning_julia.py", "--c", str(scene_coord)]
                     if args.opencl:
                         argv.append("--opencl")
                     if args.sub_radius:
