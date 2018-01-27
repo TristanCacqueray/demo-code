@@ -147,19 +147,30 @@ class SpectroGraph(ScreenPart):
 
 
 class ColorMod(ScreenPart):
-    def __init__(self, window_size, band, mode="max", base_hue=0.6):
+    def __init__(self, window_size, band, mode="max", base_hue=0.6, decay=20):
         super().__init__(window_size, use_array=False)
         self.band = band
+        self.band_length = self.band[1] - self.band[0]
         self.mode = mode
         self.base_hue = base_hue
-        self.decay = 20
+        self.decay = decay
         self.prev_val = 0
         self.values = np.zeros(self.window_size[0]) + self.window_size[1]
+        self.threshold = 0.4
 
-    def render(self, spectrogram):
-        self.values = np.roll(self.values, -1)
+    def get(self, spectrogram):
         band = spectrogram.band[self.band[0]:self.band[1]]
-        if (band == 0).all():
+        if self.mode == "high":
+            high_val = np.where(band > self.threshold)
+            if np.any(high_val):
+                high_val = high_val[-1]
+                if np.any(high_val):
+                    val = high_val[-1] / self.band_length
+                else:
+                    val = self.prev_val
+            else:
+                val = self.prev_val
+        elif (band == 0).all():
             val = 0
         elif self.mode == "avg":
             val = np.sum(band) / len(band)
@@ -170,7 +181,11 @@ class ColorMod(ScreenPart):
         if self.prev_val > val:
             decay = (self.prev_val - val) / self.decay
             val = self.prev_val - decay
+        return val
 
+    def render(self, spectrogram):
+        self.values = np.roll(self.values, -1)
+        val = self.get(spectrogram)
         self.values[-1] = self.window_size[1] - self.window_size[1] * val
         self.prev_val = val
         self.surface.fill(hsv(self.base_hue + 0.3 * val, 0.8, 0.5 + 2 * val))

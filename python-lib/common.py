@@ -273,8 +273,10 @@ class Animation:
             length = self.scene_length
         return np.logspace(np.log10(start), np.log10(end), length)
 
-    def linspace(self, start, end):
-        return np.linspace(start, end, self.scene_length)
+    def linspace(self, start, end, length=None):
+        if length is None:
+            length = self.scene_length
+        return np.linspace(start, end, length)
 
     def update(self, frame):
         for idx in range(len(self.scenes)):

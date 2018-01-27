@@ -41,7 +41,7 @@ class GimpGradient:
             (seg.l, seg.m, seg.r,
                 seg.rl, seg.gl, seg.bl, _,
                 seg.rr, seg.gr, seg.br, _,
-                seg.fn, seg.space) = map(float, line.split())
+                seg.fn, seg.space) = map(float, line.split()[:13])
             self.segs.append(seg)
 
     def color(self, x):
