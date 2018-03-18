@@ -1,0 +1,31 @@
+---
+formula: |
+  z.imag = fabs(z.imag);
+  z = cdouble_powr(z, mod);
+  z = cdouble_add(z, c);
+  z = cdouble_log(z);
+kernel: mean-distance
+kernel_params: "double mod"
+kernel_params_mod:
+  - mod
+mod: 1
+xyinverted: True
+mods:
+  mod:
+    type: ratio
+    sliders: true
+    min: 0.0001
+    max: 10
+    resolution: 0.001
+variant:
+  head:
+    c_imag: -2.8454190476190493
+    c_real: -0.3964285714285715
+    grad_freq: 5.8
+    i_step: 0.0002
+    julia: true
+    map_center_imag: -2.4576190476190476
+    map_center_real: -0.3964285714285715
+    max_iter: 128
+    r_step: 0.0002
+    radius: 1486.3401631812214

@@ -1,0 +1,11 @@
+---
+formula: |
+  z2 = cdouble_mul(z, c);
+  z2.real += 1;
+  z2.imag = fabs(z2.imag);
+  z2.real = fabs(z2.real);
+  z = z2;
+  z2 = cdouble_rdivide(1.0, z2);
+  z = cdouble_add(z, z2);
+  z = cdouble_log(z);
+kernel: mean-distance

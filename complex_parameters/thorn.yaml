@@ -1,0 +1,36 @@
+---
+formula: |
+  z2.real = z.real;
+  z2.imag = z.imag;
+  z.real = z2.real / cos(z2.imag) + c.real;
+  z.imag = z2.imag / sin(z2.real) + c.imag;
+julia: True
+c_imag: -3.1000000000000014
+c_real: -2.7755575615628914e-17
+center_imag: 0.022591848392039537
+center_real: -1.563073510624236
+grad_freq: 42.0
+map_center_imag: -2.3000000000000007
+map_center_real: -2.7755575615628914e-17
+max_iter: 730
+radius: 1.608345456816096
+show_map: false
+variants:
+  test:
+    c_real: -0.354
+    c_imag: 0.162
+  test2:
+      c_real: 9.984
+      c_imag: 7.55
+  cosine:
+    formula: |
+      z2.real = z.real;
+      z2.imag = z.imag;
+      z.real = z2.real / sin(cos(z.imag)*sin(z.imag))+c.real;
+      z.imag = z2.imag / cos(sin(z.real)*cos(z.real))+c.imag;
+    c_imag: -2.1000000000000005
+    c_real: 2.9000000000000012
+    center_imag: 3.8997928378573476
+    center_real: 0.04266288817218111
+    max_iter: 1892
+    radius: 0.7677848437866781

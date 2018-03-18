@@ -1,0 +1,24 @@
+---
+formula: |
+  z2.imag = z.real * z.imag * -2.0 + c.imag;
+  z.real = z.real * z.real - z.imag * z.imag + c.real;
+  z.imag = z2.imag;
+variants:
+  coliflower:
+    center_imag: -0.1690922853977074
+    center_real: -1.1125046939354244
+    grad_freq: 13.8
+    max_iter: 1372
+    radius: 2.5497714788378727e-08
+  minibrot:
+    center_imag: -0.004006684935840963
+    center_real: -1.5743854256529861
+    grad_freq: 13.8
+    max_iter: 1844
+    radius: 5.6470082694741794e-05
+  minibar:
+    center_imag: -0.0012086983140294847
+    center_real: -1.5733704474253516
+    grad_freq: 15.35
+    max_iter: 2190
+    radius: 1.2742858155091294e-06

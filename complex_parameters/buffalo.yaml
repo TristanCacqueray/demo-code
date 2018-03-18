@@ -1,0 +1,35 @@
+---
+formula: |
+  z.imag = fabs(z.imag);
+  z = cdouble_mul(z, z);
+  z = cdouble_add(z, c);
+gradient: AG_zebra.ggr
+variants:
+  minibuffalo:
+    center_imag: 0.844134900483836
+    center_real: -0.7815716546722006
+    grad_freq: 1.6
+    max_iter: 1856
+    radius: 2.988013451763132e-08
+  mast:
+    center_imag: 0.0032693872946050347
+    center_real: -1.7316240478985865
+    grad_freq: 1.7
+    max_iter: 1856
+    radius: 2.3107755359065062e-09
+  fatout:
+    c_imag: 0.021302712282494758
+    c_real: -1.732335158720565
+    center_imag: -0.010026381418777198
+    grad_freq: 39.25
+    gradient: Sunrise.ggr
+    i_step: 0.003
+    julia: true
+    map_center_imag: 0.0033627122824947584
+    map_center_real: -1.7315251587205658
+    map_radius: 0.0003474089609239853
+    max_iter: 1856
+    r_step: 3.0e-05
+    radius: 0.05639839548062174
+    show_map: false
+    xyinverted: true

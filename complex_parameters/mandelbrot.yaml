@@ -1,0 +1,40 @@
+---
+formula: |
+  z = cdouble_mul(z, z);
+  z = cdouble_add(z, c);
+center_real: -0.7
+gradient: "AG_coldfire.ggr" # AG_zebra.ggr
+radius: 1.20
+grad_freq: 8.6
+variants:
+  minibrot:
+    center_imag: 0.02858348620353002
+    center_real: -1.2503842886153809
+    grad_freq: 20.3
+    max_iter: 10000
+    radius: 7.588894773577532e-05
+  hypocamp:
+    center_imag: 0.0671758361241913
+    center_real: -0.7489833669717809
+    grad_freq: 26.7
+    max_iter: 10000
+    radius: 0.0016535378719445808
+  minibrot2:
+    center_imag: -1.1156802251326712
+    center_real: -0.22782358637485875
+    grad_freq: 42.0
+    max_iter: 4840
+    radius: 1.0108731398739825e-08
+  spirals:
+    c_imag: -0.14342446688970661
+    c_real: -0.7829510942447416
+    center_real: 0
+    grad_freq: 40.0
+    i_step: 6.803533424958136e-09
+    julia: true
+    map_center_imag: -0.1434245077109072
+    map_center_real: -0.7829511078518084
+    map_radius: 6.803533424958136e-08
+    max_iter: 2086
+    r_step: 6.803533424958136e-09
+    radius: 0.0009301150529688267

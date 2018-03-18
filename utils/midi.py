@@ -1,8 +1,21 @@
-#!/usr/bin/env python
-# Licensed under the Apache License, Version 2.0
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
 
 import numpy as np
+import os
+import pickle
 import sys
+import logging
 from struct import unpack
 
 
@@ -19,13 +32,44 @@ def midi_varlen(fobj):
             return value
 
 
+class MidiMod:
+    def __init__(self, track, mod="pitch", event="chords", decay=10):
+        self.track = track
+        self.event = event
+        self.decay = decay
+        self.master_decay = decay
+        self.mod = mod
+        self.prev_val = 0
+
+    def update(self, midi_events):
+        val = 0
+        for event in midi_events:
+            if event["track"] != self.track:
+                continue
+            for ev in event["ev"]:
+                if ev["type"] == self.event:
+                    if self.mod == "pitch":
+                        max_pitch = max(list(ev["pitch"].keys()))
+                        val = max_pitch / 127.0
+                        self.decay = ev["pitch"][max_pitch] / self.master_decay
+        if self.prev_val > val:
+            decay = (self.prev_val - val) / self.decay
+            val = self.prev_val - decay
+        self.prev_val = val
+        return val
+
+
 class Midi:
+    log = logging.getLogger("midi")
+
     def __init__(self, fn, fps=25):
         self.load(fn)
-        self.fps = fps
-        self.normalize()
+        self.normalize(fps)
 
     def load(self, fn):
+        if os.path.exists("%s.pck" % fn):
+            self.tracks = pickle.load(open("%s.pck" % fn, "rb"))
+            return
         with open(fn, 'rb') as f:
             # Read header
             b = f.read(4)
@@ -34,13 +78,15 @@ class Midi:
             sz, fmt, trk, self.res = unpack(">LHHH", f.read(10))
             # Read padding
             f.read(sz - 10) if sz > 10 else None
-#            print("Size: %d\nfmt: %d\ntrk: %d\nres: %d" % (
-#                sz, fmt, trk, self.res))
+            self.log.info("Size: %d | fmt: %d | trk: %d | res: %d",
+                          sz, fmt, trk, self.res)
             self.tracks = []
             self.tempo = 500000
             events = []
             track = {}
             track_name = 'NONAME'
+            pos_map = []
+            trk_nr = 0
             for trknr in range(trk):
                 if events:
                     track['name'] = track_name
@@ -55,9 +101,22 @@ class Midi:
 #                print("New track %d" % sz)
                 trk_start = f.tell()
                 trk_pos = 0
+                tck_pos = 0
+                last_tck_pos = 0
+                trk_nr += 1
                 while f.tell() - trk_start < sz:
                     tck = midi_varlen(f)
-                    trk_pos += tck * self.tempo * 1e-6 / self.res
+                    tck_pos += tck
+                    if trk_nr > 1:
+                        if len(pos_map):
+                            # Handle tempo change
+                            for tck in range(last_tck_pos, tck_pos):
+                                try:
+                                    trk_pos += pos_map[tck] * 1e-6 / self.res
+                                except IndexError:
+                                    trk_pos += pos_map[-1] * 1e-6 / self.res
+                        else:
+                            trk_pos += tck * self.tempo * 1e-6 / self.res
                     etype = read_byte(f)
                     if etype >= 0x80:
                         mtype = etype & 0xf0
@@ -73,17 +132,21 @@ class Midi:
                         data = f.read(esz)
                         if cmd == 0x58:
                             n, d, c, b = unpack(">BBBB", data)
-#                            print("TS", n, d, c, b)
+                            self.log.debug("New TS %s %s %s %s", n, d, c, b)
                         elif cmd == 0x51:
-                            t = (data[0] << 16) | (data[1] << 8) | (data[2])
-#                            print("BPM", (60 * 1000000) / t)
-                            self.tempo = t
+                            for tck in range(last_tck_pos, tck_pos):
+                                pos_map.append(self.tempo)
+                            self.tempo = ((data[0] << 16) |
+                                          (data[1] << 8) |
+                                          (data[2]))
+                            self.log.debug(
+                                "BPM", tck_pos, (60 * 1000000) / self.tempo)
                         else:
-                            # print("Meta 0x%x: %s" % (cmd, data))
+                            self.log.debug("Meta 0x%x: %s", cmd, data)
                             if cmd == 0x3:
                                 track_name = data.decode('utf-8')
                     elif etype == 0xf0:
-                        # print("Skipping sysex")
+                        self.log.debug("Skipping sysex")
                         while True:
                             if read_byte(f) == 0xf7:
                                 break
@@ -93,8 +156,6 @@ class Midi:
                                        'pitch': pitch,
                                        'velocity': velocity,
                                        'pos': trk_pos})
-#                        print("NoteOn chan%d: %d/%d @ %f" % (
-#                        mchan, pitch, velocity, trk_pos))
                     elif mtype == 0x80:
                         pitch, velocity = read_byte(f), read_byte(f)
 #                        print("NoteOf chan%d %d/%d @ %f" % (
@@ -111,12 +172,15 @@ class Midi:
                             read_byte(f)
 #                        print("Program/Aftertouch change %X" % mtype)
                     else:
-                        print("Unknown event: 0x%X (%X / %X)" % (
+                        self.log.warning("Unknown event: 0x%X (%X / %X)" % (
                             etype, mtype, mchan))
+                    last_tck_pos = tck_pos
+        if len(pos_map):
+            pickle.dump(self.tracks, open("%s.pck" % fn, "wb"))
 
-    def normalize(self):
+    def normalize(self, fps):
         self.frames = []
-        pos = 1/self.fps
+        pos = 1 / fps
         while True:
             eof = True
             frame = []
@@ -156,15 +220,22 @@ class Midi:
             self.frames.append(frame)
             if eof:
                 break
-            pos += 1/self.fps
+            pos += 1 / fps
 
     def get(self, frame):
         return self.frames[frame]
+
+
+class NoMidi:
+    def get(self, _):
+        return []
 
 
 if __name__ == "__main__":
     midi = Midi(sys.argv[1])
     frame = 0
     while True:
-        print(frame, midi.get(frame))
+        events = midi.get(frame)
+        if events:
+            print(frame, events)
         frame += 1

@@ -1,0 +1,31 @@
+---
+formula: |
+  z.real = fabs(z.real);
+  z.imag = fabs(z.imag);
+  z = cdouble_mul(z, z);
+  z = cdouble_add(z, c);
+center_imag: -0.03040213022707038
+center_real: -1.6246211646123265
+radius: 0.04098128043115139
+gradient: "AG_coldfire.ggr" # AG_zebra.ggr
+grad_freq: 6.30
+super_sampling: 2
+#gradient: "render_data/gradcentral/AG/AG_firecode.ggr"
+variants:
+  miniship:
+    center_imag: -1.5137721341644506
+    center_real: 0.852881590231284
+    grad_freq: 1.15
+    radius: 1.94596121008654e-07
+  pattern1:
+    center_imag: -0.0019903918901698725
+    center_real: -1.9433809714014925
+    grad_freq: 31.1
+    max_iter: 3182
+    radius: 1.0107332194055041e-10
+  mast:
+    center_imag: -0.0020911190454081414
+    center_real: -1.9073868382876977
+    grad_freq: 42.0
+    max_iter: 1764
+    radius: 2.4997452305540743e-08

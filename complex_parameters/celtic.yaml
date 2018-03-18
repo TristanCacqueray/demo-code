@@ -1,0 +1,22 @@
+---
+formula: |
+  z2.real = fabs(z.real*z.real - z.imag * z.imag) + c.real;
+  z.imag = 2 * z.real * z.imag + c.imag;
+  z.real = z2.real;
+center_real: -0.8580078124999997
+grad_freq: 16.55
+max_iter: 762
+radius: 2.15625
+variants:
+  mask:
+    center_imag: -1.7592417228173218
+    center_real: -0.8020158364966881
+    grad_freq: 42.0
+    max_iter: 1788
+    radius: 5.3819634761809274e-08
+  minicelt:
+    center_imag: -2.4463145455665247e-11
+    center_real: -1.999943522196632
+    grad_freq: 42.0
+    max_iter: 2282
+    radius: 8.863369980205575e-09
