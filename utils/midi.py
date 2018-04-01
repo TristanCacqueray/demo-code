@@ -52,6 +52,8 @@ class MidiMod:
                         max_pitch = max(list(ev["pitch"].keys()))
                         val = max_pitch / 127.0
                         self.decay = ev["pitch"][max_pitch] / self.master_decay
+                    elif self.mod == "one-off":
+                        val = 1
         if self.prev_val > val:
             decay = (self.prev_val - val) / self.decay
             val = self.prev_val - decay
