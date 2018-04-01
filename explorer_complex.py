@@ -58,7 +58,7 @@ def usage(argv=sys.argv[1:]):
         if args.variant in args.params.get("variants", {}):
             args.variant = args.params["variants"][args.variant]
         else:
-            args.variant = json.loads(args.variant)
+            args.variant = json.loads(open(args.variant))
     elif isinstance(args.params, str):
         args.params = json.loads(args.params)
     if args.super_sampling:
@@ -160,7 +160,7 @@ def main():
     scene = FractalMap(args.winsize, args.params)
     screen.add(scene)
     if args.params["show_map"] and args.params["julia"]:
-        scene.map_scene = Fractal(args.map_size, args.params, scene.gpu)
+        scene.map_scene = FractalMap(args.map_size, args.params, scene.gpu)
         screen.add(scene.map_scene)
     controller.set(screen, scene)
 

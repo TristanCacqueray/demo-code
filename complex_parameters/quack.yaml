@@ -17,7 +17,7 @@ mods:
     min: 0.0001
     max: 10
     resolution: 0.001
-variant:
+variants:
   head:
     c_imag: -2.8454190476190493
     c_real: -0.3964285714285715

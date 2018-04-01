@@ -180,10 +180,9 @@ def run_main(demo, Scene=Fractal):
         import subprocess
         cmd = [
             "ffmpeg", "-y", "-framerate", str(args.fps),
-            "-start_number", str(args.skip),
             "-i", "%s/%%04d.png" % args.record,
             "-i", args.wav,
             "-c:a", "libvorbis", "-c:v", "copy",
-            "%s/%04d-render.mp4" % (args.record, args.skip)]
+            "%s/render.mp4" % (args.record)]
         print("Running: %s" % " ".join(cmd))
         subprocess.Popen(cmd).wait()
