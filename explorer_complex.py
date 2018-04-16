@@ -57,8 +57,10 @@ def usage(argv=sys.argv[1:]):
     if args.variant is not None:
         if args.variant in args.params.get("variants", {}):
             args.variant = args.params["variants"][args.variant]
-        else:
+        elif os.path.exists(args.variant):
             args.variant = json.loads(open(args.variant))
+        else:
+            args.variant = json.loads(args.variant)
     elif isinstance(args.params, str):
         args.params = json.loads(args.params)
     if args.super_sampling:
