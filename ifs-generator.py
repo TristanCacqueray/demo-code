@@ -116,3 +116,5 @@ def main():
             subprocess.Popen(argv).wait()
     except KeyboardInterrupt:
         pass
+
+main()
