@@ -62,8 +62,8 @@ class Window:
         text = self.font.render(msg, True, color)
         self.surface.blit(text, coord)
 
-    def draw_line(self, start_coord, end_coord, color=(28, 28, 28)):
-        pygame.draw.line(self.surface, color, start_coord, end_coord)
+    def draw_line(self, start_coord, end_coord, color=(28, 28, 28), width=1):
+        pygame.draw.line(self.surface, color, start_coord, end_coord, width)
 
     def draw_circle(self, coord, size, color=(28, 28, 28)):
         pygame.draw.circle(self.surface, color, coord, size)
