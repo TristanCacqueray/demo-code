@@ -154,6 +154,7 @@ class Fractal(game.Window, game.ComplexPlane):
         game.Window.__init__(self, winsize)
         self.params = params
         self.draw = True
+        self.alive = True
         self.mapmode = False
         self.map_scene = None
         if gpu:

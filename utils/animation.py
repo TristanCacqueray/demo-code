@@ -51,7 +51,7 @@ def usage():
 
 
 class Animation(Controller):
-    def __init__(self, params):
+    def __init__(self, params, default={}):
         # Insert scene length
         for idx in range(1, len(self.scenes)):
             length = self.scenes[idx - 1][0] - self.scenes[idx][0]
@@ -61,7 +61,7 @@ class Animation(Controller):
         self.audio_events = {}
         self.spectre = None
         self.silent = False
-        super().__init__(params, default={})
+        super().__init__(params)
 
     def setAudio(self, audio):
         self.audio = audio
