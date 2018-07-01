@@ -21,6 +21,8 @@ import utils.midi
 import utils.audio
 import utils.game
 import utils.widgets
+from utils.audio import AudioMod
+from utils.midi import MidiMod
 
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, K_ESCAPE
 from pygame.locals import K_LEFT, K_RIGHT, K_DOWN, K_UP, K_SPACE
@@ -72,14 +74,26 @@ def main():
     graph = utils.widgets.SpectroGraph((x, y//2), audio.audio_frame_size)
 
     max_freq = audio.audio_frame_size // 2
+    if True:
+        audio_events = {
+            "hgh": AudioMod((575, max_freq), "mean", decay=5),
+            "mid": AudioMod((36, 100), "mean", decay=8, threshold=0.2),
+            "low": AudioMod((0, 12), "max", decay=10, threshold=0.5),
+        }
+        midi_events = {
+            "hgh": MidiMod("DirtyBass", mod="pitch"),
+            "mid": MidiMod("Redrum 1 copy", mod="ev-37", decay=10),
+            "low": MidiMod("Redrum 1 copy", mod="ev-36", decay=10),
+        }
+
     if not args.midi:
-        hgh_mod = utils.audio.AudioMod((373, max_freq), "max")
-        mid_mod = utils.audio.AudioMod((25, 70), "avg")
-        low_mod = utils.audio.AudioMod((0, 24), "max")
+        hgh_mod = audio_events["hgh"]
+        mid_mod = audio_events["mid"]
+        low_mod = audio_events["low"]
     else:
-        hgh_mod = utils.midi.MidiMod("snare")
-        mid_mod = utils.midi.MidiMod("kick")
-        low_mod = utils.midi.MidiMod("andy 67", decay=1)
+        hgh_mod = midi_events["hgh"]
+        mid_mod = midi_events["mid"]
+        low_mod = midi_events["low"]
     hgh_color = utils.widgets.ModColor((x//3, y//6))
     mid_color = utils.widgets.ModColor((x//3, y//6), base_hue=0.4)
     low_color = utils.widgets.ModColor((x//3, y//6), base_hue=0.1)
@@ -92,6 +106,8 @@ def main():
 
     frame = args.skip
     paused = False
+    # TODO: add a toggle to enable midi mod event debug
+    debug_mod_ev = set()
     while True:
         if not paused:
             audio_buf = audio.get(frame)
@@ -112,7 +128,22 @@ def main():
                 mid_color.render(mid_mod.update(midi_events))
                 low_color.render(low_mod.update(midi_events))
                 if midi_events:
-                    print(frame, midi_events)
+                    # Look for mod event
+                    mod_ev = False
+                    for event in midi_events:
+                        mod_evs = [ev for ev in event["ev"]
+                                   if ev["type"] == "mod"]
+                        if mod_evs:
+                            for ev in mod_evs:
+                                ev_id = "%s-%s" % (event["track"], ev["mod"])
+                                if ev_id in debug_mod_ev:
+                                    # TODO: remove the event instead
+                                    mod_ev = True
+                                    debug_mod_ev.add(ev_id)
+                                    break
+                    # Skip mod event, (todo: remove empty track)
+                    if not mod_ev:
+                        print(frame, midi_events)
             frame += 1
 
         for e in pygame.event.get():
