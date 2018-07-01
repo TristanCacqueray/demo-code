@@ -160,7 +160,7 @@ class Fractal(game.Window, game.ComplexPlane):
         if gpu:
             self.gpu = gpu
             self.mapmode = True
-            self.previous_c = collections.deque(maxlen=42)
+            self.previous_c = collections.deque(maxlen=2000)
             self.set_view(self.params["map_center_real"],
                           self.params["map_center_imag"],
                           self.params["map_radius"])
@@ -237,3 +237,27 @@ class Fractal(game.Window, game.ComplexPlane):
         if self.mapmode:
             self.draw_previous_c()
         return True
+
+    def create_map_scene(self, win_size, params):
+        self.map_scene = Fractal(win_size, params, gpu=self.gpu)
+
+    def add_c(self, c):
+        if self.params["show_map"]:
+            if self.params["xyinverted"]:
+                c = complex(c.imag, c.real)
+            if not len(self.previous_c) or self.previous_c[-1] != c:
+                self.previous_c.append(c)
+                self.draw = True
+                if not self.included(c):
+                    # Re-center
+                    self.params["map_center_real"] = c.real
+                    self.params["map_center_imag"] = c.imag
+                    self.draw = True
+
+    def draw_previous_c(self):
+        length = len(self.previous_c)
+        pos = 0
+        for c in self.previous_c:
+            pos += 1
+            self.draw_complex(
+                c, color=[100 + int(100 * (pos / length))]*3, width=2)

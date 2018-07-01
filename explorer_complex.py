@@ -73,31 +73,6 @@ def usage(argv=sys.argv[1:]):
     return args
 
 
-class FractalMap(Fractal):
-    def create_map_scene(self, win_size, params):
-        self.map_scene = Fractal(win_size, params, gpu=self.gpu)
-
-    def add_c(self, c):
-        if self.params["show_map"]:
-            if self.params["xyinverted"]:
-                c = complex(c.imag, c.real)
-            if not len(self.previous_c) or self.previous_c[-1] != c:
-                self.previous_c.append(c)
-                self.draw = True
-                if not self.included(c):
-                    # Re-center
-                    self.params["map_center_real"] = c.real
-                    self.params["map_center_imag"] = c.imag
-                    self.draw = True
-
-    def draw_previous_c(self):
-        length = len(self.previous_c)
-        pos = 0
-        for c in self.previous_c:
-            pos += 1
-            self.draw_complex(c, color=[100 + int(100 * (pos / length))]*3)
-
-
 class MapController(Controller):
     def on_pygame_clic(self, ev):
         scene = self.scene
@@ -142,7 +117,7 @@ class MapController(Controller):
                 self.params["julia"] = True
                 self.scene.draw = True
                 if self.params["show_map"]:
-                    self.scene.map_scene = FractalMap(self.map_size,
+                    self.scene.map_scene = Fractal(self.map_size,
                                                    self.params,
                                                    gpu=self.scene.gpu)
                     self.screen.add(self.scene.map_scene)
@@ -159,10 +134,10 @@ def main():
     controller = MapController(args.params, args.variant)
     controller.map_size = args.map_size
     screen = game.Screen(args.winsize)
-    scene = FractalMap(args.winsize, args.params)
+    scene = Fractal(args.winsize, args.params)
     screen.add(scene)
     if args.params["show_map"] and args.params["julia"]:
-        scene.map_scene = FractalMap(args.map_size, args.params, scene.gpu)
+        scene.map_scene = Fractal(args.map_size, args.params, scene.gpu)
         screen.add(scene.map_scene)
     controller.set(screen, scene)
 
