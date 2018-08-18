@@ -47,6 +47,7 @@ __kernel void compute(
     __global uint *pixels,
     char const julia,
     uint const max_iter,
+    uint const pre_iter,
     double const gradient_frequency,
     double const c_real,
     double const c_imag
@@ -120,6 +121,7 @@ __kernel void compute(
     __global uint *pixels,
     char const julia,
     uint const max_iter,
+    uint const pre_iter,
     double const gradient_frequency,
     double const c_real,
     double const c_imag
@@ -186,6 +188,7 @@ __kernel void compute(
     __global uint *pixels,
     char const julia,
     uint const max_iter,
+    uint const pre_iter,
     double const gradient_frequency,
     double const c_real,
     double const c_imag
@@ -250,6 +253,7 @@ __kernel void compute(
     __global uint *pixels,
     char const julia,
     uint const max_iter,
+    uint const pre_iter,
     double const gradient_frequency,
     double const c_real,
     double const c_imag
@@ -274,13 +278,15 @@ __kernel void compute(
     int iter;
     for (iter = 0; iter < max_iter; iter++) {{
         {formula}
-        modulus = cdouble_abs(z);
-        mean += modulus;
-        if (modulus > escape) {{
+        if (iter > pre_iter) {{
+          modulus = cdouble_abs(z);
+          mean += modulus;
+        }}
+        if (modulus > escape && iter > pre_iter) {{
             break;
         }}
     }}
-    mean = 1.0 - log2(0.5 * log2(mean / (double)(iter)));
+    mean = 1.0 - log2(0.5 * log2(mean / (double)(iter - pre_iter)));
     pixels[gid] = gradient[(int)(
         (mean * {gradient_length} * gradient_frequency)) % {gradient_length}];
 }}
@@ -354,6 +360,7 @@ class Fractal(game.Window, game.ComplexPlane):
             plane,
             np.byte(self.params["julia"] and not self.mapmode),
             np.uint32(self.params["max_iter"]),
+            np.uint32(self.params.get("pre_iter", 0)),
             np.double(self.params["grad_freq"]),
             np.double(self.params["c_real"]),
             np.double(self.params["c_imag"]),
