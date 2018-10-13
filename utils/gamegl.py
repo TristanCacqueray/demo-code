@@ -17,10 +17,11 @@ import os
 import numpy as np
 from PIL import Image
 
-from glumpy import app, gl
+from glumpy import app, gl, gloo
 from glumpy.app.window import key
 from glumpy.app.window.event import EventDispatcher
 
+from . controller import Controller
 from . audio import Audio, NoAudio
 from . midi import Midi, NoMidi
 
@@ -29,11 +30,9 @@ class Window(EventDispatcher):
     alive = True
     draw = True
 
-    def __init__(self, winsize, screen, demo):
+    def __init__(self, winsize, screen):
         self.winsize = winsize
         self.window = screen
-        self.demo = demo
-        self.params = demo.params
         self.init_program()
         self.fbuffer = np.zeros(
             (self.window.height, self.window.width * 3), dtype=np.uint8)
@@ -49,13 +48,181 @@ class Window(EventDispatcher):
         pass
 
     def on_resize(self, width, height):
-        print("on_resize!")
+        pass
 
     def on_key_press(self, k, modifiers):
         if k == key.ESCAPE:
             self.alive = False
         elif k == key.SPACE:
-            self.demo.paused = not self.demo.paused
+            self.paused = not self.paused
+        self.draw = True
+
+
+def fragment_loader(filename: str, export: bool):
+    final = []
+    uniforms = {"mods": {}}
+    shadertoy = False
+
+    def loader(lines: list):
+        for line in lines:
+            if line.startswith("#include"):
+                loader(open(os.path.join(os.path.dirname(filename),
+                                         line.split()[1][1:-1])
+                            ).read().split('\n'))
+            else:
+                export_line = ""
+                if line.startswith('uniform'):
+                    param = line.split()[2][:-1]
+                    param_type = line.split()[1]
+                    if param_type == "float":
+                        val = 0.
+                    elif param_type == "vec2":
+                        val = [0., 0.]
+                    elif param_type == "vec3":
+                        val = [0., 0., 0.]
+                    elif param_type == "vec4":
+                        val = [0., 0., 0., 0.]
+                    else:
+                        raise RuntimeError("Unknown uniform %s" % line)
+                    if '//' in line:
+                        if 'slider' in line:
+                            slider_str = line[line.index('slider'):].split(
+                                '[')[1].split(']')[0]
+                            smi, sma, sre = list(map(
+                                float, slider_str.split(',')))
+                            uniforms["mods"][param] = {
+                                "type": param_type,
+                                "sliders": True,
+                                "min": smi,
+                                "max": sma,
+                                "resolution": sre,
+                            }
+                        val_str = line.split()[-1]
+                        if param_type == "float":
+                            val = float(val_str)
+                        elif param_type == "vec3":
+                            val = list(map(float, val_str.split(',')))
+                        uniforms[param] = val
+                        if shadertoy:
+                            if param_type.startswith("vec"):
+                                val_str = "%s%s" % (param_type, tuple(val))
+                            else:
+                                val_str = str(val)
+                            export_line = "const %s %s = %s;" % (
+                                param_type, param, val_str
+                            )
+                if export and export_line:
+                    final.append(export_line)
+                else:
+                    final.append(line)
+    fragment = open(filename).read()
+    if "void mainImage(" in fragment:
+        shadertoy = True
+        if not export:
+            final.append("""uniform vec2 iResolution;
+uniform vec4 iMouse;
+uniform float iTime;
+void mainImage(out vec4 fragColor, in vec2 fragCoord);
+void main(void) {mainImage(gl_FragColor, gl_FragCoord.xy);}""")
+    loader(fragment.split('\n'))
+    return "\n".join(final), uniforms
+
+
+class FragmentShader(Window):
+    """A class to simplify raymarcher/DE experiment"""
+    vertex = """
+attribute vec2 position;
+
+void main (void)
+{
+    gl_Position = vec4(position, 0.0, 1.0);
+}
+"""
+    buttons = {
+        app.window.mouse.NONE: 0,
+        app.window.mouse.LEFT: 1,
+        app.window.mouse.MIDDLE: 2,
+        app.window.mouse.RIGHT: 3
+    }
+
+    def __init__(self, args):
+        self.fragment, self.params = fragment_loader(
+            args.fragment, args.export)
+        if args.export:
+            print(self.fragment)
+            exit(0)
+        self.program_params = set(self.params.keys()) - set(('mods', ))
+        self.controller = Controller(self.params, default={})
+        self.screen = app.Window(width=args.winsize[0], height=args.winsize[1])
+        super().__init__(args.winsize, self.screen)
+        self.controller.set(self.screen, self)
+        self.screen.attach(self)
+        self.paused = False
+
+    def init_program(self):
+        # Ensure size is set
+        print("program param: ", self.program_params)
+        print("---[")
+        print(self.fragment)
+        print("]---")
+        self.program = gloo.Program(self.vertex, self.fragment, count=4)
+        self.program['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
+        self.program['iTime'] = 0.0
+        self.iTime = time.monotonic()
+        # TODO: make those setting parameter
+        gl.glEnable(gl.GL_BLEND)
+        gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+
+    def update(self, frame):
+        self.draw = False
+        if self.controller.root:
+            self.controller.root.update()
+        if self.paused:
+            return self.draw
+        self.draw = True
+        return self.draw
+
+    def render(self, dt):
+        self.window.clear()
+        for p in self.program_params:
+            self.program[p] = self.params[p]
+        self.program["iTime"] = time.monotonic() - self.iTime
+        self.program.draw(gl.GL_TRIANGLE_STRIP)
+
+    def on_resize(self, width, height):
+        self.program["iResolution"] = width, height
+        self.winsize = (width, height)
+        self.draw = True
+
+    def on_mouse_drag(self, x, y, dx, dy, button):
+        self.program["iMouse"] = x, y, self.buttons[button], 0
+        if "pitch" in self.params:
+            self.params["pitch"] -= dy / 50
+        if "yaw" in self.params:
+            self.params["yaw"] += dx / 50
+        self.draw = True
+        print(x, y, dx, dy, button)
+
+    def on_mouse_scroll(self, x, y, dx, dy):
+        if "fov" in self.params:
+            self.params["fov"] += self.params["fov"] / 10 * dy
+        self.draw = True
+
+    def on_key_press(self, k, modifiers):
+        super().on_key_press(k, modifiers)
+        s = 0.1
+        if k == 87:  # z
+            self.params['cam'][2] += s
+        if k == 83:  # s
+            self.params['cam'][2] -= s
+        if k == 65:  # a
+            self.params['cam'][0] -= s
+        if k == 68:  # d
+            self.params['cam'][0] += s
+        if k == 69:  # a
+            self.params["cam"][1] += s
+        if k == 81:  # b
+            self.params["cam"][1] -= s
         self.draw = True
 
 
@@ -79,7 +246,7 @@ def usage():
 def run_main(demo, Scene):
     args = usage()
     screen = app.Window(width=args.winsize[0], height=args.winsize[1])
-    scene = Scene(args.winsize, screen, demo)
+    scene = Scene(args.winsize, screen)
     screen.attach(scene)
 
     backend = app.__backend__
@@ -127,9 +294,10 @@ def run_main(demo, Scene):
                 frame, time.monotonic() - start_time,
                 json.dumps(demo.get(), sort_keys=True)))
 
-        backend.process(clock.tick())
         if args.record:
             scene.capture(os.path.join(args.record, "%04d.png" % frame))
+
+        backend.process(clock.tick())
 
     if args.record:
         import subprocess
