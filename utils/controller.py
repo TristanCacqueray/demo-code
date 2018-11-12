@@ -148,7 +148,7 @@ class Controller:
                 continue
             if mod_param.get("type") == "fine":
                 self.add_fine(mod)
-            if mod_param.get("type") == "vec3":
+            elif mod_param.get("type") == "vec3":
                 self.add_vec3(mod, mod_param)
             else:
                 self.add_float(mod,
