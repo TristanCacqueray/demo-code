@@ -195,13 +195,12 @@ void main (void)
         self.draw = True
 
     def on_mouse_drag(self, x, y, dx, dy, button):
-        self.program["iMouse"] = x, y, self.buttons[button], 0
+        self.program["iMouse"] = x, self.winsize[1] - y, self.buttons[button], 0
         if "pitch" in self.params:
             self.params["pitch"] -= dy / 50
         if "yaw" in self.params:
             self.params["yaw"] += dx / 50
         self.draw = True
-        print(x, y, dx, dy, button)
 
     def on_mouse_scroll(self, x, y, dx, dy):
         if "fov" in self.params:
