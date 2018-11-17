@@ -41,7 +41,7 @@ class Window(EventDispatcher):
         gl.glReadPixels(
             0, 0, self.window.width, self.window.height,
             gl.GL_RGB, gl.GL_UNSIGNED_BYTE, self.fbuffer)
-        image = Image.frombytes("RGB", self.winsize, self.fbuffer)
+        image = Image.frombytes("RGB", self.winsize, np.ascontiguousarray(np.flip(self.fbuffer, 0)))
         image.save(filename, 'png')
 
     def on_draw(self, dt):
