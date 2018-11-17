@@ -29,6 +29,7 @@ def usage(argv=sys.argv[1:]):
                         help="record rendering destination")
     parser.add_argument("--fps", type=int, default=25,
                         help="frames per second")
+    parser.add_argument("--skip", type=int, default=0)
     parser.add_argument("--max-frame", type=int, default=65535)
     parser.add_argument("--export", action="store_true")
     parser.add_argument("--paused", action="store_true")
@@ -48,14 +49,16 @@ def main():
     clock = app.__init__(backend=backend, framerate=args.fps)
     scene.alive = True
     topause = args.paused
-    frame = 0
+    frame = args.skip
     while scene.alive:
         start_time = time.monotonic()
         if scene.update(frame):
             scene.render(frame)
         if args.record:
             scene.capture(os.path.join(args.record, "%04d.png" % frame))
-        backend.process(clock.tick())
+            backend.process(0)
+        else:
+            backend.process(clock.tick())
         frame += 1
         if scene.paused:
             continue
