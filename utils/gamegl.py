@@ -151,6 +151,8 @@ void main (void)
         if args.export:
             print(self.fragment)
             exit(0)
+        self.fps = args.fps
+        self.record = args.record
         self.program_params = set(self.params.keys()) - set(('mods', ))
         self.controller = Controller(self.params, default={})
         self.screen = app.Window(width=args.winsize[0], height=args.winsize[1])
@@ -186,7 +188,12 @@ void main (void)
         self.window.clear()
         for p in self.program_params:
             self.program[p] = self.params[p]
-        self.program["iTime"] = time.monotonic() - self.iTime
+        if self.record:
+            dt = dt / self.fps
+        else:
+            dt = time.monotonic() - self.iTime
+
+        self.program["iTime"] = dt
         self.program.draw(gl.GL_TRIANGLE_STRIP)
 
     def on_resize(self, width, height):
@@ -201,6 +208,9 @@ void main (void)
         if "yaw" in self.params:
             self.params["yaw"] += dx / 50
         self.draw = True
+
+    def on_mouse_release(self, x, y, button):
+        self.program["iMouse"] = x, self.winsize[1] - y, 0, 0
 
     def on_mouse_scroll(self, x, y, dx, dy):
         if "fov" in self.params:

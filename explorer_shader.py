@@ -29,6 +29,7 @@ def usage(argv=sys.argv[1:]):
                         help="record rendering destination")
     parser.add_argument("--fps", type=int, default=25,
                         help="frames per second")
+    parser.add_argument("--max-frame", type=int, default=65535)
     parser.add_argument("--export", action="store_true")
     parser.add_argument("--paused", action="store_true")
     parser.add_argument("fragment", help="fragment file",
@@ -52,6 +53,8 @@ def main():
         start_time = time.monotonic()
         if scene.update(frame):
             scene.render(frame)
+        if args.record:
+            scene.capture(os.path.join(args.record, "%04d.png" % frame))
         backend.process(clock.tick())
         frame += 1
         if scene.paused:
@@ -62,6 +65,18 @@ def main():
         print("%04d: %.2f sec %s" % (
             frame, time.monotonic() - start_time,
             json.dumps(scene.controller.get(), sort_keys=True)))
+        if frame > args.max_frame:
+            break
+
+    if args.record:
+        import subprocess
+        cmd = [
+            "ffmpeg", "-y", "-framerate", str(args.fps),
+            "-i", "%s/%%04d.png" % args.record,
+            "-c:v", "copy",
+            "%s/render.mp4" % (args.record)]
+        print("Running: %s" % " ".join(cmd))
+        subprocess.Popen(cmd).wait()
 
 
 if __name__ == "__main__":
