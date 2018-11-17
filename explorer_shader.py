@@ -30,6 +30,7 @@ def usage(argv=sys.argv[1:]):
     parser.add_argument("--fps", type=int, default=25,
                         help="frames per second")
     parser.add_argument("--export", action="store_true")
+    parser.add_argument("--paused", action="store_true")
     parser.add_argument("fragment", help="fragment file",
                         nargs='?')
     args = parser.parse_args(argv)
@@ -45,6 +46,7 @@ def main():
     backend = app.__backend__
     clock = app.__init__(backend=backend, framerate=args.fps)
     scene.alive = True
+    topause = args.paused
     frame = 0
     while scene.alive:
         start_time = time.monotonic()
@@ -54,6 +56,9 @@ def main():
         frame += 1
         if scene.paused:
             continue
+        if topause:
+            topause = False
+            scene.paused = True
         print("%04d: %.2f sec %s" % (
             frame, time.monotonic() - start_time,
             json.dumps(scene.controller.get(), sort_keys=True)))
