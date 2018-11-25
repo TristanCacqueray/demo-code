@@ -59,9 +59,9 @@ def main():
             backend.process(0)
         else:
             backend.process(clock.tick())
-        frame += 1
         if scene.paused:
             continue
+        frame += 1
         if topause:
             topause = False
             scene.paused = True

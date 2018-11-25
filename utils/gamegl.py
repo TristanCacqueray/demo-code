@@ -133,9 +133,8 @@ class FragmentShader(Window):
     vertex = """
 attribute vec2 position;
 
-void main (void)
-{
-    gl_Position = vec4(position, 0.0, 1.0);
+void main(void) {
+  gl_Position = vec4(position, 0., 1.);
 }
 """
     buttons = {
@@ -170,7 +169,6 @@ void main (void)
         self.program = gloo.Program(self.vertex, self.fragment, count=4)
         self.program['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
         self.program['iTime'] = 0.0
-        self.iTime = time.monotonic()
         # TODO: make those setting parameter
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
@@ -188,10 +186,7 @@ void main (void)
         self.window.clear()
         for p in self.program_params:
             self.program[p] = self.params[p]
-        if self.record:
-            dt = dt / self.fps
-        else:
-            dt = time.monotonic() - self.iTime
+        dt = dt / self.fps
 
         self.program["iTime"] = dt
         self.program.draw(gl.GL_TRIANGLE_STRIP)
@@ -219,19 +214,20 @@ void main (void)
 
     def on_key_press(self, k, modifiers):
         super().on_key_press(k, modifiers)
-        s = 0.1
-        if k == 87:  # z
-            self.params['cam'][2] += s
-        if k == 83:  # s
-            self.params['cam'][2] -= s
-        if k == 65:  # a
-            self.params['cam'][0] -= s
-        if k == 68:  # d
-            self.params['cam'][0] += s
-        if k == 69:  # a
-            self.params["cam"][1] += s
-        if k == 81:  # b
-            self.params["cam"][1] -= s
+        if "cam" in self.params:
+            s = 0.1
+            if k == 87:  # z
+                self.params['cam'][2] += s
+            if k == 83:  # s
+                self.params['cam'][2] -= s
+            if k == 65:  # a
+                self.params['cam'][0] -= s
+            if k == 68:  # d
+                self.params['cam'][0] += s
+            if k == 69:  # a
+                self.params["cam"][1] += s
+            if k == 81:  # b
+                self.params["cam"][1] -= s
         self.draw = True
 
 
