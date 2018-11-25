@@ -240,16 +240,23 @@ vec2 castRay(vec3 ro, vec3 rd) {
   return vec2(t, m);
 }
 
-float calcSoftshadow(vec3 ro, vec3 rd, float mint, float tmax) {
+// Improved soft shadow by Sebastian Aaltonen
+// From: http://www.iquilezles.org/www/articles/rmshadows/rmshadows.htm
+float calcSoftshadow(vec3 ro, vec3 rd, float mint, float maxt) {
+  float k = 32.;
   float res = 1.0;
-  float t = mint;
-  for (int i=0; i < 32; i++) {
+  float ph = 1e20;
+  for (float t=mint; t < maxt; ) {
     float h = scene(ro + rd * t).x;
-    res = min(res, 8.0 * h / t);
-    t += clamp(h, 0.02, 0.10);
-    if (res < 0.005 || t > tmax) break;
+    if (h < 0.001)
+      return 0.0;
+    float y = h * h / (2.0 * ph);
+    float d = sqrt(h * h - y * y);
+    res = min(res, k * d / max(0.0, t-y));
+    ph = h;
+    t += h;
   }
-  return clamp(res, 0.0, 1.0);
+  return res;
 }
 
 #ifdef FLOOR
@@ -293,7 +300,7 @@ vec3 render(vec3 ro, vec3 rd) {
     #endif
     // lightning
     float occ = calcAO(pos, nor);
-    vec3  lig = normalize(vec3(0.1, 0.5, -0.6));
+    vec3  lig = normalize(vec3(0.25, 0.7, -1.));
     vec3  hal = normalize(lig - rd);
     float amb = clamp(0.5 + 0.5 * nor.y, 0.0, 1.0);
     float dif = clamp(dot(nor, lig), 0.0, 1.0);
