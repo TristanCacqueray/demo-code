@@ -145,13 +145,11 @@ void main(void) {
     }
 
     def __init__(self, args):
-        self.fragment, self.params = fragment_loader(
-            args.fragment, args.export)
-        if args.export:
-            print(self.fragment)
-            exit(0)
         self.fps = args.fps
         self.record = args.record
+        self.iMouse = None
+        self.old_program = None
+        self.load_program(args.fragment, args.export)
         self.program_params = set(self.params.keys()) - set(('mods', ))
         self.controller = Controller(self.params, default={})
         self.screen = app.Window(width=args.winsize[0], height=args.winsize[1])
@@ -160,21 +158,36 @@ void main(void) {
         self.screen.attach(self)
         self.paused = False
 
+    def load_program(self, fragment_path, export=False):
+        self.fragment_path = fragment_path
+        self.fragment_mtime = os.stat(fragment_path).st_mtime
+        self.fragment, self.params = fragment_loader(fragment_path, export)
+        if export:
+            print(self.fragment)
+            exit(0)
+
     def init_program(self):
         # Ensure size is set
-        print("program param: ", self.program_params)
-        print("---[")
-        print(self.fragment)
-        print("]---")
+        #print("program param: ", self.program_params)
+        #print("---[")
+        #print(self.fragment)
+        #print("]---")
         self.program = gloo.Program(self.vertex, self.fragment, count=4)
         self.program['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
-        self.program['iTime'] = 0.0
         # TODO: make those setting parameter
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+        self.on_resize(*self.winsize)
+        if self.iMouse:
+            self.program["iMouse"] = self.iMouse
 
     def update(self, frame):
         self.draw = False
+        mtime = os.stat(self.fragment_path).st_mtime
+        if mtime > self.fragment_mtime:
+            self.old_program = self.program
+            self.load_program(self.fragment_path)
+            self.init_program()
         if self.controller.root:
             self.controller.root.update()
         if self.paused:
@@ -189,15 +202,30 @@ void main(void) {
         dt = dt / self.fps
 
         self.program["iTime"] = dt
-        self.program.draw(gl.GL_TRIANGLE_STRIP)
-
+        try:
+            self.program.draw(gl.GL_TRIANGLE_STRIP)
+            if self.old_program:
+                self.old_program.delete()
+                del self.old_program
+                self.old_program = None
+                print("Loaded new program!")
+        except RuntimeError:
+            if not self.old_program:
+                raise
+            self.old_program.draw(gl.GL_TRIANGLE_STRIP)
+            self.program.delete()
+            del self.program
+            self.program = self.old_program
+            self.old_program = None
+            self.paused = True
     def on_resize(self, width, height):
         self.program["iResolution"] = width, height
         self.winsize = (width, height)
         self.draw = True
 
     def on_mouse_drag(self, x, y, dx, dy, button):
-        self.program["iMouse"] = x, self.winsize[1] - y, self.buttons[button], 0
+        self.iMouse = x, self.winsize[1] - y, self.buttons[button], 0
+        self.program["iMouse"] = self.iMouse
         if "pitch" in self.params:
             self.params["pitch"] -= dy / 50
         if "yaw" in self.params:
