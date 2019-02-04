@@ -13,11 +13,12 @@
 import argparse
 import json
 import time
+import math
 import os
 import numpy as np
 from PIL import Image
 
-from glumpy import app, gl, gloo
+from glumpy import app, gl, glm, gloo
 from glumpy.app.window import key
 from glumpy.app.window.event import EventDispatcher
 
@@ -82,6 +83,8 @@ def fragment_loader(filename: str, export: bool):
                         val = [0., 0., 0.]
                     elif param_type == "vec4":
                         val = [0., 0., 0., 0.]
+                    elif param_type == "mat4":
+                        val = np.eye(4, dtype=np.float32)
                     else:
                         raise RuntimeError("Unknown uniform %s" % line)
                     if '//' in line:
@@ -111,6 +114,8 @@ def fragment_loader(filename: str, export: bool):
                             export_line = "const %s %s = %s;" % (
                                 param_type, param, val_str
                             )
+                    elif param == "iMat":
+                        uniforms[param] = val
                 if export and export_line:
                     final.append(export_line)
                 else:
@@ -151,6 +156,12 @@ void main(void) {
         self.old_program = None
         self.load_program(args.fragment, args.export)
         self.program_params = set(self.params.keys()) - set(('mods', ))
+        self.iMat = self.params.get("iMat")
+        if self.iMat is not None:
+            self.horizontal_angle = 0.
+            self.vertical_angle = 0.
+            self.setDirection()
+            self.position = np.array([.0, .0, 4.2])
         self.controller = Controller(self.params, default={})
         self.screen = app.Window(width=args.winsize[0], height=args.winsize[1])
         super().__init__(args.winsize, self.screen)
@@ -162,6 +173,8 @@ void main(void) {
         self.fragment_path = fragment_path
         self.fragment_mtime = os.stat(fragment_path).st_mtime
         self.fragment, self.params = fragment_loader(fragment_path, export)
+        self.iTime = "iTime" in self.fragment
+        self.iMouse = "iMouse" in self.fragment
         if export:
             print(self.fragment)
             exit(0)
@@ -197,11 +210,18 @@ void main(void) {
 
     def render(self, dt):
         self.window.clear()
+        if self.iMat is not None:
+            self.iMat = np.eye(4, dtype=np.float32)
+            glm.xrotate(self.iMat, self.horizontal_angle)
+            glm.yrotate(self.iMat, self.vertical_angle)
+            glm.translate(self.iMat, *self.position)
+            self.params["iMat"] = self.iMat
         for p in self.program_params:
             self.program[p] = self.params[p]
         dt = dt / self.fps
 
-        self.program["iTime"] = dt
+        if self.iTime:
+            self.program["iTime"] = dt
         try:
             self.program.draw(gl.GL_TRIANGLE_STRIP)
             if self.old_program:
@@ -218,22 +238,59 @@ void main(void) {
             self.program = self.old_program
             self.old_program = None
             self.paused = True
+
     def on_resize(self, width, height):
         self.program["iResolution"] = width, height
         self.winsize = (width, height)
         self.draw = True
 
+    def setDirection(self):
+        v = math.radians(self.vertical_angle) * -1
+        h = math.radians(self.horizontal_angle)
+        if self.vertical_angle > 90 or self.vertical_angle < -90:
+            # Not sure why this is needed...
+            h *= -1
+        self.front_direction = np.array([
+            math.sin(v),
+            math.cos(v) * math.sin(h),
+            math.cos(v) * math.cos(h),
+        ])
+        self.right_direction = np.array([
+            math.sin(v - math.pi / 2.),
+            0,
+            math.cos(v - math.pi / 2.)
+        ])
+        self.up_direction = np.cross(
+            self.right_direction, self.front_direction)
+        #print("vert %.1f, horz %.1f, front_direction: %s" % (
+        #    self.vertical_angle, self.horizontal_angle,
+        #    ",".join(list(map(lambda x: "%.1f" % x, self.front_direction)))))
+
     def on_mouse_drag(self, x, y, dx, dy, button):
-        self.iMouse = x, self.winsize[1] - y, self.buttons[button], 0
-        self.program["iMouse"] = self.iMouse
-        if "pitch" in self.params:
-            self.params["pitch"] -= dy / 50
-        if "yaw" in self.params:
-            self.params["yaw"] += dx / 50
+        if self.iMat is not None:
+            self.horizontal_angle += dy / 5
+            self.vertical_angle += dx / 10
+            # Prevent being up side down
+            #if self.horizontal_angle > 90:
+            #    self.horizontal_angle = 90
+            #elif self.horizontal_angle < -90:
+            #    self.horizontal_angle = -90
+            # Clamp angle from -180 to 180
+            self.horizontal_angle = (180 + self.horizontal_angle) % 360 - 180
+            self.vertical_angle = (180 + self.vertical_angle) % 360 - 180
+            self.setDirection()
+        elif self.iMouse:
+            self.iMouse = x, self.winsize[1] - y, self.buttons[button], 0
+            self.program["iMouse"] = self.iMouse
+            if "pitch" in self.params:
+                self.params["pitch"] -= dy / 50
+            if "yaw" in self.params:
+                self.params["yaw"] += dx / 50
         self.draw = True
 
     def on_mouse_release(self, x, y, button):
-        self.program["iMouse"] = x, self.winsize[1] - y, 0, 0
+        if self.iMouse:
+            self.program["iMouse"] = x, self.winsize[1] - y, 0, 0
 
     def on_mouse_scroll(self, x, y, dx, dy):
         if "fov" in self.params:
@@ -242,7 +299,22 @@ void main(void) {
 
     def on_key_press(self, k, modifiers):
         super().on_key_press(k, modifiers)
-        if "cam" in self.params:
+        if self.iMat is not None:
+            s = 0.1
+            if k == 87:    # z
+                self.position -= self.front_direction * s
+            elif k == 83:  # s
+                self.position += self.front_direction * s
+            elif k == 65:  # a
+                self.position += self.right_direction * s
+            elif k == 68:  # d
+                self.position -= self.right_direction * s
+            elif k == 69:  # a
+                self.position += self.up_direction * s
+            elif k == 81:  # b
+                self.position -= self.up_direction * s
+            # print(",".join(list(map(lambda x: "%.1f" % x, self.position))))
+        elif "cam" in self.params:
             s = 0.1
             if k == 87:  # z
                 self.params['cam'][2] += s

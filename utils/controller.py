@@ -181,7 +181,6 @@ class Controller:
                 else:
                     raise RuntimeError("%s: Unknown vec3 idx" % i)
                 value = self.params[n][idx]
-                print(t, n, v, value)
             else:
                 value = self.params[n]
             if t == "float" or t == "vec3":
@@ -250,7 +249,6 @@ class Controller:
                 self.params[n] = val
             if t == "float":
                 self.params[n] = v.get()
-                print("Setting", n, "to", v.get())
             if t == "vec3":
                 n, i = n.split('_')
                 if i == "x":
@@ -391,7 +389,7 @@ class Controller:
         """Get modified params"""
         params = {}
         for k, v in self.start_params.items():
-            if self.params[k] != v:
+            if k != "iMat" and self.params[k] != v:
                 params[k] = self.params[k]
         return params
 
