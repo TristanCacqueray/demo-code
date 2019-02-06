@@ -53,10 +53,6 @@ def usage(argv=sys.argv[1:]):
 def main():
     args = usage()
 
-    if not args.wav:
-        print("--wav is required")
-        exit(1)
-
     if args.midi:
         midi = utils.midi.Midi(args.midi)
     else:
@@ -68,12 +64,12 @@ def main():
 
     screen = utils.game.Screen(args.winsize)
 
-    spectre = utils.audio.SpectroGram(audio.audio_frame_size)
+    spectre = utils.audio.SpectroGram(audio.blocksize)
     x, y = args.winsize
     waterfall = utils.widgets.Waterfall((2 * x//3, y//2), 2)
-    graph = utils.widgets.SpectroGraph((x, y//2), audio.audio_frame_size)
+    graph = utils.widgets.SpectroGraph((x, y//2), audio.blocksize)
 
-    max_freq = audio.audio_frame_size // 2
+    max_freq = audio.blocksize // 2
     if True:
         audio_events = {
             "hgh": AudioMod((575, max_freq), "mean", decay=5),
