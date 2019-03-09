@@ -152,16 +152,26 @@ void main(void) {
     def __init__(self, args):
         self.fps = args.fps
         self.record = args.record
-        self.iMouse = None
         self.old_program = None
         self.load_program(args.fragment, args.export)
+        if args.params:
+            self.params.update(args.params)
         self.program_params = set(self.params.keys()) - set(('mods', ))
         self.iMat = self.params.get("iMat")
+        # Gimbal mode, always looking at the center
+        self.gimbal = True
+        if self.gimbal:
+            self.params.setdefault("horizontal_angle", 0.)
+            self.params.setdefault("vertical_angle", 0.)
+            self.params.setdefault("distance", 10.)
         if self.iMat is not None:
-            self.horizontal_angle = 0.
-            self.vertical_angle = 0.
+            self.horizontal_angle = self.params.get("horizontal_angle", 0.)
+            self.vertical_angle = self.params.get("vertical_angle", 0.)
             self.setDirection()
-            self.position = np.array([.0, .0, 4.2])
+            if self.gimbal:
+                self.position = np.array([.0, .0, self.params["distance"]])
+            else:
+                self.position = np.array([.0, .0, 10.2])
         self.controller = Controller(self.params, default={})
         self.screen = app.Window(width=args.winsize[0], height=args.winsize[1])
         super().__init__(args.winsize, self.screen)
@@ -212,9 +222,15 @@ void main(void) {
         self.window.clear()
         if self.iMat is not None:
             self.iMat = np.eye(4, dtype=np.float32)
-            glm.xrotate(self.iMat, self.horizontal_angle)
-            glm.yrotate(self.iMat, self.vertical_angle)
+            if not self.gimbal:
+                glm.xrotate(self.iMat, self.horizontal_angle)
+                glm.yrotate(self.iMat, self.vertical_angle)
+            else:
+                self.position = [0., 0., self.params["distance"]]
             glm.translate(self.iMat, *self.position)
+            if self.gimbal:
+                glm.xrotate(self.iMat, self.params["horizontal_angle"])
+                glm.yrotate(self.iMat, self.params["vertical_angle"])
             self.params["iMat"] = self.iMat
         for p in self.program_params:
             self.program[p] = self.params[p]
@@ -278,6 +294,11 @@ void main(void) {
             # Clamp angle from -180 to 180
             self.horizontal_angle = (180 + self.horizontal_angle) % 360 - 180
             self.vertical_angle = (180 + self.vertical_angle) % 360 - 180
+            if self.gimbal:
+                self.params["horizontal_angle"] = \
+                    (180 + self.params["horizontal_angle"] + dy / 5) % 360 - 180
+                self.params["vertical_angle"] = \
+                    (180 + self.params["vertical_angle"] + dx / 10) % 360 - 180
             self.setDirection()
         elif self.iMouse:
             self.iMouse = x, self.winsize[1] - y, self.buttons[button], 0
@@ -293,6 +314,8 @@ void main(void) {
             self.program["iMouse"] = x, self.winsize[1] - y, 0, 0
 
     def on_mouse_scroll(self, x, y, dx, dy):
+        if self.gimbal:
+            self.params["distance"] -= 0.1 * dy
         if "fov" in self.params:
             self.params["fov"] += self.params["fov"] / 10 * dy
         self.draw = True
