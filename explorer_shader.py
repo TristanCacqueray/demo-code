@@ -33,11 +33,18 @@ def usage(argv=sys.argv[1:]):
     parser.add_argument("--max-frame", type=int, default=65535)
     parser.add_argument("--export", action="store_true")
     parser.add_argument("--paused", action="store_true")
+    parser.add_argument("--params", help="manual parameters")
     parser.add_argument("fragment", help="fragment file",
                         nargs='?')
     args = parser.parse_args(argv)
     if args.fragment is None:
         args.fragment = "fragments/new.glsl"
+    if args.params is not None:
+        if os.path.exists(args.params):
+            args.params = json.loads(open(args.params))
+        else:
+            args.params = json.loads(args.params)
+
     args.winsize = list(map(lambda x: int(x * args.size), [160,  90]))
     return args
 
