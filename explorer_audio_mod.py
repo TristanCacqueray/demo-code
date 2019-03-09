@@ -27,6 +27,9 @@ from utils.midi import MidiMod
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, K_ESCAPE
 from pygame.locals import K_LEFT, K_RIGHT, K_DOWN, K_UP, K_SPACE
 
+import hy
+import utils.modulations as M
+
 
 def usage(argv=sys.argv[1:]):
     parser = argparse.ArgumentParser(
@@ -72,14 +75,14 @@ def main():
     max_freq = audio.blocksize // 2
     if True:
         audio_events = {
-            "hgh": AudioMod((575, max_freq), "mean", decay=5),
-            "mid": AudioMod((36, 100), "mean", decay=8, threshold=0.2),
-            "low": AudioMod((0, 12), "max", decay=10, threshold=0.5),
+            "hgh": M.AudioModulator((575, max_freq)),
+            "mid": M.AudioModulator((36, 100)),
+            "low": M.AudioModulator((0, 22)),
         }
         midi_events = {
-            "hgh": MidiMod("DirtyBass", mod="pitch"),
-            "mid": MidiMod("Redrum 1 copy", mod="ev-37", decay=10),
-            "low": MidiMod("Redrum 1 copy", mod="ev-36", decay=10),
+            "hgh": M.PitchModulator("SpacePiano1"),
+            "mid": M.PitchModulator("Redrum 1 copy"),
+            "low": M.PitchModulator("DirtyBass"),
         }
 
     if not args.midi:
@@ -112,17 +115,18 @@ def main():
             graph.render(spectre)
             waterfall.render(spectre)
             if not args.midi:
-                hgh_color.render(hgh_mod.update(spectre))
-                mid_color.render(mid_mod.update(spectre))
-                low_color.render(low_mod.update(spectre))
+                hgh_color.render(hgh_mod(spectre))
+                mid_color.render(mid_mod(spectre))
+                low_color.render(low_mod(spectre))
 
             screen.update()
             pygame.display.update()
             if midi:
                 midi_events = midi.get(args.midi_skip + frame)
-                hgh_color.render(hgh_mod.update(midi_events))
-                mid_color.render(mid_mod.update(midi_events))
-                low_color.render(low_mod.update(midi_events))
+                #print(v)
+                hgh_color.render(hgh_mod(midi_events))
+                mid_color.render(mid_mod(midi_events))
+                low_color.render(low_mod(midi_events))
                 if midi_events:
                     # Look for mod event
                     mod_ev = False
