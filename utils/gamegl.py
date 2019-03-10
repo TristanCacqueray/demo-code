@@ -420,11 +420,14 @@ def main(modulator):
         start_time = time.monotonic()
         if not scene.paused:
             audio_buf = audio.get(frame)
-            spectre.transform(audio_buf)
+            if audio_buf is not None:
+                spectre.transform(audio_buf)
             midi_events = midi.get(args.midi_skip + frame)
             if midi_events:
                 print(midi_events)
-            mod(frame, spectre, midi.get(args.midi_skip + frame))
+            if mod(frame, spectre, midi.get(args.midi_skip + frame)):
+                print("Setting alive to false")
+                scene.alive = False
             frame += 1
             scene.controller.update_sliders()
         scene.controller.root.update()

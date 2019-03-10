@@ -104,10 +104,13 @@ class Audio:
         if self.input:
             buf = self.input.read()
         else:
-            buf = self.wav[
-                self.audio_frames_path[frame]:
-                self.audio_frames_path[frame] + self.blocksize]
-        if self.player and self.play:
+            try:
+                buf = self.wav[
+                    self.audio_frames_path[frame]:
+                    self.audio_frames_path[frame] + self.blocksize]
+            except IndexError:
+                buf = None
+        if self.player and self.play and buf is not None:
             self.player.play(buf)
         return buf
 
