@@ -23,7 +23,7 @@ from glumpy.app.window import key
 from glumpy.app.window.event import EventDispatcher
 
 from . controller import Controller
-from . audio import Audio, NoAudio
+from . audio import Audio, NoAudio, SpectroGram
 from . midi import Midi, NoMidi
 
 
@@ -154,9 +154,9 @@ void main(void) {
         self.record = args.record
         self.old_program = None
         self.load_program(args.fragment, args.export)
+        self.program_params = set(self.params.keys()) - set(('mods', ))
         if args.params:
             self.params.update(args.params)
-        self.program_params = set(self.params.keys()) - set(('mods', ))
         self.iMat = self.params.get("iMat")
         # Gimbal mode, always looking at the center
         self.gimbal = True
@@ -205,7 +205,6 @@ void main(void) {
             self.program["iMouse"] = self.iMouse
 
     def update(self, frame):
-        self.draw = False
         mtime = os.stat(self.fragment_path).st_mtime
         if mtime > self.fragment_mtime:
             self.old_program = self.program
@@ -365,10 +364,93 @@ def usage():
     parser.add_argument("--skip", default=0, type=int, metavar="FRAMES_NUMBER")
     parser.add_argument("--size", type=float, default=8,
                         help="render size")
+    parser.add_argument("--export", action="store_true")
+    parser.add_argument("--params", help="manual parameters")
+    parser.add_argument("fragment", help="fragment file",
+                        nargs='?')
     args = parser.parse_args()
+
+    if args.params is not None:
+        if os.path.exists(args.params):
+            args.params = json.loads(open(args.params))
+        else:
+            args.params = json.loads(args.params)
+
     args.winsize = list(map(lambda x: int(x * args.size), [160,  90]))
     args.map_size = list(map(lambda x: x//5, args.winsize))
     return args
+
+
+def main(modulator):
+    args = usage()
+    scene = FragmentShader(args)
+    backend = app.__backend__
+    clock = app.__init__(backend=backend, framerate=args.fps)
+    scene.alive = True
+    frame = args.skip
+    if args.wav:
+        audio = Audio(args.wav, args.fps, play=not args.record)
+    else:
+        audio = NoAudio()
+    if args.midi:
+        midi = Midi(args.midi)
+    else:
+        midi = NoMidi()
+
+    mod = modulator(scene.params)
+    scene.controller.update_sliders()
+
+    spectre = SpectroGram(audio.blocksize)
+
+    audio.play = False
+    for skip in range(args.skip):
+        audio_buf = audio.get(frame)
+        spectre.transform(audio_buf)
+        mod(skip, spectre, midi.get(args.midi_skip + skip))
+    audio.play = not args.record
+
+    scene.alive = True
+
+    if args.paused:
+        scene.paused = True
+        args.paused = False
+
+    frame = args.skip
+    while scene.alive:
+        start_time = time.monotonic()
+        if not scene.paused:
+            audio_buf = audio.get(frame)
+            spectre.transform(audio_buf)
+            midi_events = midi.get(args.midi_skip + frame)
+            if midi_events:
+                print(midi_events)
+            mod(frame, spectre, midi.get(args.midi_skip + frame))
+            frame += 1
+            scene.controller.update_sliders()
+        scene.controller.root.update()
+        if scene.update(frame):
+            scene.render(frame)
+
+            if args.record:
+                scene.capture(os.path.join(args.record, "%04d.png" % frame))
+
+            print("%04d: %.2f sec '%s'" % (
+                frame, time.monotonic() - start_time,
+                json.dumps(scene.controller.get(), sort_keys=True)))
+            scene.draw = False
+
+        backend.process(clock.tick())
+
+    if args.record:
+        import subprocess
+        cmd = [
+            "ffmpeg", "-y", "-framerate", str(args.fps),
+            "-i", "%s/%%04d.png" % args.record,
+            "-i", args.wav,
+            "-c:a", "libvorbis", "-c:v", "copy",
+            "%s/render.mp4" % (args.record)]
+        print("Running: %s" % " ".join(cmd))
+        subprocess.Popen(cmd).wait()
 
 
 def run_main(demo, Scene):
