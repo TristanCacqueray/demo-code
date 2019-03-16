@@ -73,7 +73,7 @@ def fragment_loader(fragment: str, export: bool, filename=None):
                             ).read().split('\n'))
             else:
                 export_line = ""
-                if line.startswith('uniform'):
+                if line.lstrip().startswith('uniform'):
                     param = line.split()[2][:-1]
                     param_type = line.split()[1]
                     if param_type == "float":
@@ -115,7 +115,7 @@ def fragment_loader(fragment: str, export: bool, filename=None):
                             export_line = "const %s %s = %s;" % (
                                 param_type, param, val_str
                             )
-                    elif param == "iMat":
+                    else:
                         uniforms[param] = val
                 if export and export_line:
                     final.append(export_line)
@@ -149,16 +149,19 @@ void main(void) {
         app.window.mouse.RIGHT: 3
     }
 
-    def __init__(self, args, fragment=None, title=None):
+    def __init__(self, args, fragment=None, winsize=None, title=None):
         self.fps = args.fps
         self.record = args.record
         self.old_program = None
         if fragment is None:
             fragment = args.fragment
+        if winsize:
+            args.winsize = list(map(int, winsize))
+        self.title = title
         self.load_program(fragment, args.export)
-        self.program_params = set(self.params.keys()) - set(('mods', ))
-        if args.params:
-            self.params.update(args.params)
+        self.params = args.params
+        self.program_params = set(self._params.keys()).intersection(
+            set(self.params.keys())) - {"mods"}
         self.iMat = self.params.get("iMat")
         # Gimbal mode, always looking at the center
         self.gimbal = True
@@ -193,7 +196,7 @@ void main(void) {
             fn = None
             self.fragment_mtime = None
 
-        self.fragment, self.params = fragment_loader(fragment, export, fn)
+        self.fragment, self._params = fragment_loader(fragment, export, fn)
         self.iTime = "iTime" in self.fragment
         self.iMouse = "iMouse" in self.fragment
         if export:
@@ -327,9 +330,15 @@ void main(void) {
             2 * y / self.winsize[1] - 1,
         ]
         uv[1] *= self.winsize[1] / self.winsize[0]
-        self.params["center"] = [
-            self.params["center"][0] + uv[0] * self.params["range"],
-            self.params["center"][1] - uv[1] * self.params["range"]
+        if self.title == 'Map':
+            prefix = 'map_'
+            range = self.params["map_range"]
+        else:
+            prefix = ''
+            range = self.params["range"]
+        self.params[prefix + "center"] = [
+            self.params[prefix + "center"][0] + uv[0] * range,
+            self.params[prefix + "center"][1] - uv[1] * range,
         ]
 
     def on_mouse_press(self, x, y, button):
@@ -343,7 +352,11 @@ void main(void) {
 
     def on_mouse_scroll(self, x, y, dx, dy):
         if "range" in self.params:
-            self.params["range"] -= self.params["range"] / 10 * dy
+            if self.title == 'Map':
+                range = 'map_range'
+            else:
+                range = 'range'
+            self.params[range] -= self.params[range] / 10 * dy
             self.gimbal = False
         if self.gimbal:
             self.params["distance"] -= 0.1 * dy
@@ -407,6 +420,8 @@ def usage():
             args.params = json.loads(open(args.params))
         else:
             args.params = json.loads(args.params)
+    else:
+        args.params = {}
 
     args.winsize = list(map(lambda x: int(x * args.size), [160,  90]))
     args.map_size = list(map(lambda x: x//5, args.winsize))
