@@ -329,12 +329,16 @@ void main(void) {
                 self.params["yaw"] += dx / 50
         self.draw = True
 
-    def updateCenter(self, x, y):
+    def normalizeCoord(self, x, y):
         uv = [
             2 * x / self.winsize[0] - 1,
             2 * y / self.winsize[1] - 1,
         ]
         uv[1] *= self.winsize[1] / self.winsize[0]
+        return uv
+
+    def updateCenter(self, x, y):
+        uv = self.normalizeCoord(x, y)
         if self.title == 'Map':
             prefix = 'map_'
             range = self.params["map_range"]
@@ -346,8 +350,17 @@ void main(void) {
             self.params[prefix + "center"][1] - uv[1] * range,
         ]
 
+    def updateSeed(self, x, y):
+        uv = self.normalizeCoord(x, y)
+        self.params["seed"] = [
+            self.params["map_center"][0] + uv[0] * self.params["map_range"],
+            self.params["map_center"][1] - uv[1] * self.params["map_range"],
+        ]
+
     def on_mouse_press(self, x, y, button):
-        if "center" in self.params:
+        if self.title == "Map" and button == 4:
+            self.updateSeed(x, y)
+        if "center" in self.params and button != 4:
             self.updateCenter(x, y)
             self.draw = True
 
