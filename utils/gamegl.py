@@ -321,11 +321,30 @@ void main(void) {
                 self.params["yaw"] += dx / 50
         self.draw = True
 
+    def updateCenter(self, x, y):
+        uv = [
+            2 * x / self.winsize[0] - 1,
+            2 * y / self.winsize[1] - 1,
+        ]
+        uv[1] *= self.winsize[1] / self.winsize[0]
+        self.params["center"] = [
+            self.params["center"][0] + uv[0] * self.params["range"],
+            self.params["center"][1] - uv[1] * self.params["range"]
+        ]
+
+    def on_mouse_press(self, x, y, button):
+        if "center" in self.params:
+            self.updateCenter(x, y)
+            self.draw = True
+
     def on_mouse_release(self, x, y, button):
         if self.iMouse:
             self.program["iMouse"] = x, self.winsize[1] - y, 0, 0
 
     def on_mouse_scroll(self, x, y, dx, dy):
+        if "range" in self.params:
+            self.params["range"] -= self.params["range"] / 10 * dy
+            self.gimbal = False
         if self.gimbal:
             self.params["distance"] -= 0.1 * dy
         if "fov" in self.params:
