@@ -104,7 +104,7 @@ def fragment_loader(fragment: str, export: bool, filename=None):
                         val_str = line.split()[-1]
                         if param_type == "float":
                             val = float(val_str)
-                        elif param_type == "vec3":
+                        elif param_type in ("vec2", "vec3"):
                             val = list(map(float, val_str.split(',')))
                         uniforms[param] = val
                         if shadertoy:
