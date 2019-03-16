@@ -16,6 +16,7 @@ import time
 import math
 import os
 import numpy as np
+import copy
 from PIL import Image
 
 from glumpy import app, gl, glm, gloo
@@ -184,6 +185,7 @@ void main(void) {
         self.controller.set(self.screen, self)
         self.screen.attach(self)
         self.paused = False
+        self.prev_params = {}
 
     def load_program(self, fragment_path, export=False):
         if os.path.exists(fragment_path):
@@ -227,6 +229,8 @@ void main(void) {
                 self.init_program()
         if self.controller.root:
             self.controller.root.update()
+        if self.prev_params != self.params:
+            self.draw = True
         if self.paused:
             return self.draw
         self.draw = True
@@ -269,6 +273,7 @@ void main(void) {
             self.program = self.old_program
             self.old_program = None
             self.paused = True
+        self.prev_params = copy.deepcopy(self.params)
 
     def on_resize(self, width, height):
         self.program["iResolution"] = width, height
