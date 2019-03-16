@@ -37,6 +37,7 @@ class Window(EventDispatcher):
         self.init_program()
         self.fbuffer = np.zeros(
             (self.window.height, self.window.width * 3), dtype=np.uint8)
+        super().__init__()
 
     def capture(self, filename):
         gl.glReadPixels(
@@ -59,7 +60,7 @@ class Window(EventDispatcher):
         self.draw = True
 
 
-def fragment_loader(filename: str, export: bool):
+def fragment_loader(fragment: str, export: bool, filename=None):
     final = []
     uniforms = {"mods": {}}
     shadertoy = False
@@ -120,7 +121,6 @@ def fragment_loader(filename: str, export: bool):
                     final.append(export_line)
                 else:
                     final.append(line)
-    fragment = open(filename).read()
     if "void mainImage(" in fragment:
         shadertoy = True
         if not export:
@@ -149,11 +149,13 @@ void main(void) {
         app.window.mouse.RIGHT: 3
     }
 
-    def __init__(self, args):
+    def __init__(self, args, fragment=None):
         self.fps = args.fps
         self.record = args.record
         self.old_program = None
-        self.load_program(args.fragment, args.export)
+        if fragment is None:
+            fragment = args.fragment
+        self.load_program(fragment, args.export)
         self.program_params = set(self.params.keys()) - set(('mods', ))
         if args.params:
             self.params.update(args.params)
@@ -180,9 +182,17 @@ void main(void) {
         self.paused = False
 
     def load_program(self, fragment_path, export=False):
-        self.fragment_path = fragment_path
-        self.fragment_mtime = os.stat(fragment_path).st_mtime
-        self.fragment, self.params = fragment_loader(fragment_path, export)
+        if os.path.exists(fragment_path):
+            fragment = open(fragment_path).read()
+            fn = fragment_path
+            self.fragment_path = fragment_path
+            self.fragment_mtime = os.stat(fragment_path).st_mtime
+        else:
+            fragment = fragment_path
+            fn = None
+            self.fragment_mtime = None
+
+        self.fragment, self.params = fragment_loader(fragment, export, fn)
         self.iTime = "iTime" in self.fragment
         self.iMouse = "iMouse" in self.fragment
         if export:
@@ -205,11 +215,12 @@ void main(void) {
             self.program["iMouse"] = self.iMouse
 
     def update(self, frame):
-        mtime = os.stat(self.fragment_path).st_mtime
-        if mtime > self.fragment_mtime:
-            self.old_program = self.program
-            self.load_program(self.fragment_path)
-            self.init_program()
+        if self.fragment_mtime:
+            mtime = os.stat(self.fragment_path).st_mtime
+            if mtime > self.fragment_mtime:
+                self.old_program = self.program
+                self.load_program(self.fragment_path)
+                self.init_program()
         if self.controller.root:
             self.controller.root.update()
         if self.paused:
