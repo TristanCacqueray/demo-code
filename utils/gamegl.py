@@ -149,7 +149,7 @@ void main(void) {
         app.window.mouse.RIGHT: 3
     }
 
-    def __init__(self, args, fragment=None):
+    def __init__(self, args, fragment=None, title=None):
         self.fps = args.fps
         self.record = args.record
         self.old_program = None
@@ -175,7 +175,8 @@ void main(void) {
             else:
                 self.position = np.array([.0, .0, 10.2])
         self.controller = Controller(self.params, default={})
-        self.screen = app.Window(width=args.winsize[0], height=args.winsize[1])
+        self.screen = app.Window(
+            width=args.winsize[0], height=args.winsize[1], title=title)
         super().__init__(args.winsize, self.screen)
         self.controller.set(self.screen, self)
         self.screen.attach(self)
@@ -229,6 +230,7 @@ void main(void) {
         return self.draw
 
     def render(self, dt):
+        self.window.activate()
         self.window.clear()
         if self.iMat is not None:
             self.iMat = np.eye(4, dtype=np.float32)
