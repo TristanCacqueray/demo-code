@@ -184,8 +184,12 @@ void main() {
         self.title = title
         self.load_program(fragment, args.export)
         self.params = args.params
-        self.program_params = set(self._params.keys()).intersection(
-            set(self.params.keys())) - {"mods"}
+        if self.params:
+            self.program_params = set(self._params.keys()).intersection(
+                set(self.params.keys())) - {"mods"}
+        else:
+            self.params = self._params
+            self.program_params = set(self._params.keys()) - {"mods"}
         self.iMat = self.params.get("iMat")
         # Gimbal mode, always looking at the center
         self.gimbal = True
@@ -268,8 +272,11 @@ void main() {
                self.point_history[-1] != self.params["seed"]:
                 self.add_point(copy.copy(self.params["seed"]))
                 self.draw = True
-        if self.prev_params != self.params:
-            self.draw = True
+        try:
+            if self.prev_params != self.params:
+                self.draw = True
+        except ValueError:
+            pass
         if self.paused:
             return self.draw
         self.draw = True
