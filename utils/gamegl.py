@@ -11,6 +11,7 @@
 # under the License.
 
 import argparse
+import collections
 import json
 import time
 import math
@@ -143,6 +144,28 @@ void main(void) {
   gl_Position = vec4(position, 0., 1.);
 }
 """
+    dot_vertex = """
+attribute vec2 position;
+attribute float age;
+varying float v_age;
+
+void main(void) {
+  v_age = age;
+  gl_Position = vec4(position, 0., 1.);
+  gl_PointSize = 4.0;
+}
+"""
+    dot_fragment = """
+varying float v_age;
+void main() {
+    float sd = length(gl_PointCoord.xy - vec2(.5))  - 2 * v_age;
+    if (sd < 0.) {
+      gl_FragColor = vec4(1.0);
+    } else {
+      discard;
+    }
+}
+"""
     buttons = {
         app.window.mouse.NONE: 0,
         app.window.mouse.LEFT: 1,
@@ -213,6 +236,16 @@ void main(void) {
         #print("]---")
         self.program = gloo.Program(self.vertex, self.fragment, count=4)
         self.program['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
+        if self.title == "Map":
+            self.point_history = collections.deque(maxlen=250)
+            self.point_program = gloo.Program(
+                self.dot_vertex,
+                self.dot_fragment,
+                count=self.point_history.maxlen)
+            self.point_program['position'] = np.zeros(
+                (self.point_history.maxlen, 2), dtype=np.float32) - 2.0
+            self.point_program['age'] = np.zeros(self.point_history.maxlen,
+                                                 dtype=np.float32)
         # TODO: make those setting parameter
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
@@ -229,6 +262,12 @@ void main(void) {
                 self.init_program()
         if self.controller.root:
             self.controller.root.update()
+        if self.title == "Map":
+            # Check for new seed position
+            if not len(self.point_history) or \
+               self.point_history[-1] != self.params["seed"]:
+                self.add_point(copy.copy(self.params["seed"]))
+                self.draw = True
         if self.prev_params != self.params:
             self.draw = True
         if self.paused:
@@ -273,6 +312,11 @@ void main(void) {
             self.program = self.old_program
             self.old_program = None
             self.paused = True
+
+        if self.title == "Map":
+            gl.glEnable(gl.GL_BLEND)
+            gl.glBlendFunc(gl.GL_ONE_MINUS_DST_COLOR, gl.GL_ZERO)
+            self.point_program.draw(gl.GL_POINTS)
         self.prev_params = copy.deepcopy(self.params)
 
     def on_resize(self, width, height):
@@ -337,9 +381,34 @@ void main(void) {
         uv[1] *= self.winsize[1] / self.winsize[0]
         return uv
 
+    def add_point(self, seed):
+        center = self.params["map_center"]
+        self.point_history.append(seed)
+        if seed[0] < center[0] - self.params["map_range"] or \
+           seed[0] > center[0] + self.params["map_range"] or \
+           seed[1] < center[1] - self.params["map_range"] or \
+           seed[1] > center[1] + self.params["map_range"]:
+            print("Recentering the map")
+            self.params["map_center"] = seed
+        self.update_points_position()
+
+    def update_points_position(self):
+        center = self.params["map_center"]
+        mrange = self.params["map_range"]
+        ratio = self.winsize[1] / self.winsize[0]
+        count = len(self.point_history)
+        for idx in range(count):
+            seed = self.point_history[idx]
+            self.point_program["position"][idx] = [
+                (seed[0] - center[0]) / (mrange),
+                (seed[1] - center[1]) / (mrange * ratio)
+            ]
+            self.point_program["age"][idx] = (idx + 1) / count
+
     def updateCenter(self, x, y):
         uv = self.normalizeCoord(x, y)
         if self.title == 'Map':
+            self.update_points_position()
             prefix = 'map_'
             range = self.params["map_range"]
         else:
@@ -363,6 +432,8 @@ void main(void) {
         if "center" in self.params and button != 4:
             self.updateCenter(x, y)
             self.draw = True
+        if self.title == "Map" and button != 4:
+            self.update_points_position()
 
     def on_mouse_release(self, x, y, button):
         if self.iMouse:
@@ -375,6 +446,8 @@ void main(void) {
             else:
                 range = 'range'
             self.params[range] -= self.params[range] / 10 * dy
+            if self.title == "Map":
+                self.update_points_position()
             self.gimbal = False
         if self.gimbal:
             self.params["distance"] -= 0.1 * dy
