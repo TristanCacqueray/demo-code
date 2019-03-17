@@ -401,7 +401,7 @@ void main() {
             seed = self.point_history[idx]
             self.point_program["position"][idx] = [
                 (seed[0] - center[0]) / (mrange),
-                (seed[1] - center[1]) / (mrange * ratio)
+                -1 * (seed[1] - center[1]) / (mrange * ratio)
             ]
             self.point_program["age"][idx] = (idx + 1) / count
 
@@ -416,14 +416,14 @@ void main() {
             range = self.params["range"]
         self.params[prefix + "center"] = [
             self.params[prefix + "center"][0] + uv[0] * range,
-            self.params[prefix + "center"][1] - uv[1] * range,
+            self.params[prefix + "center"][1] + uv[1] * range,
         ]
 
     def updateSeed(self, x, y):
         uv = self.normalizeCoord(x, y)
         self.params["seed"] = [
             self.params["map_center"][0] + uv[0] * self.params["map_range"],
-            self.params["map_center"][1] - uv[1] * self.params["map_range"],
+            self.params["map_center"][1] + uv[1] * self.params["map_range"],
         ]
 
     def on_mouse_press(self, x, y, button):
