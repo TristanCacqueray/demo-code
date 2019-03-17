@@ -390,11 +390,12 @@ void main() {
 
     def add_point(self, seed):
         center = self.params["map_center"]
+        ratio = self.winsize[1] / self.winsize[0]
         self.point_history.append(seed)
-        if seed[0] < center[0] - self.params["map_range"] or \
-           seed[0] > center[0] + self.params["map_range"] or \
-           seed[1] < center[1] - self.params["map_range"] or \
-           seed[1] > center[1] + self.params["map_range"]:
+        if seed[0] < (center[0] - self.params["map_range"]) or \
+           seed[0] > (center[0] + self.params["map_range"]) or \
+           seed[1] < (center[1] - self.params["map_range"] * ratio) or \
+           seed[1] > (center[1] + self.params["map_range"] * ratio):
             print("Recentering the map")
             self.params["map_center"] = seed
         self.update_points_position()
@@ -493,6 +494,22 @@ void main() {
                 self.params["cam"][1] += s
             if k == 81:  # b
                 self.params["cam"][1] -= s
+        elif "seed" in self.params:
+            idx = None
+            if k == 87:  # z
+                idx = 1
+                d = -1
+            if k == 83:  # s
+                idx = 1
+                d = 1
+            if k == 65:  # a
+                idx = 0
+                d = -1
+            if k == 68:  # d
+                idx = 0
+                d = 1
+            if idx is not None:
+                self.params["seed"][idx] += d * self.params["map_range"] / 10
         self.draw = True
 
 
