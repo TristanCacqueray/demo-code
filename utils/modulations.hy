@@ -10,6 +10,8 @@
 ; License for the specific language governing permissions and limitations
 ; under the License.
 
+(import [numpy :as np])
+
 ;; Primitive procedures
 (defn compose [f g]
   (fn [x] (f (g x))))
@@ -52,12 +54,11 @@
           (return (.get event "pitch"))))))
 
 ; Higher level procedures
-(defn band-selector [lower-freq upper-freq]
-  (import [numpy :as np])
+(defn band-selector [proc lower-freq upper-freq]
   (fn [input]
     (setv band (cut input.band lower-freq upper-freq))
     (cond [(.all (= band 0)) 0]
-          [True (np.mean band)])))
+          [True (proc band)])))
 
 (defn midi-pitch-max [selector]
   (fn [input]
@@ -88,9 +89,14 @@
     (midi-pitch-max (midi-pitch-selector (midi-track-selector track-name)))
     (ratio-decay decay)))
 
-(defn AudioModulator [band &optional [decay 10]]
+(defn AudioModulator [band &optional peak [decay 10]]
   (Modulator
-    (band-selector (first band) (last band))
+    (band-selector (if peak np.max np.mean) (first band) (last band))
+    (ratio-decay decay)))
+
+(defn AudioPeakModulator [band &optional [decay 10]]
+  (Modulator
+    (band-selector (first band) (last band) :combinator np.max)
     (ratio-decay decay)))
 
 (defn NoteModulator [track-name note &optional [decay 10]]
