@@ -238,7 +238,7 @@ void main() {
         #print("---[")
         #print(self.fragment)
         #print("]---")
-        self.program = gloo.Program(self.vertex, self.fragment, count=4)
+        self.program = gloo.Program(self.vertex, self.fragment, count=4, version="450")
         self.program['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
         if self.title == "Map":
             self.point_history = collections.deque(maxlen=250)
