@@ -205,11 +205,15 @@ void main() {
                 self.position = np.array([.0, .0, self.params["distance"]])
             else:
                 self.position = np.array([.0, .0, 10.2])
-        self.controller = Controller(self.params, default={})
+        if title != "Map":
+            self.controller = Controller(self.params, default={})
+        else:
+            self.controller = None
         self.screen = app.Window(
             width=args.winsize[0], height=args.winsize[1], title=title)
         super().__init__(args.winsize, self.screen)
-        self.controller.set(self.screen, self)
+        if self.controller:
+            self.controller.set(self.screen, self)
         self.screen.attach(self)
         self.paused = False
         self.prev_params = {}
@@ -264,7 +268,7 @@ void main() {
                 self.old_program = self.program
                 self.load_program(self.fragment_path)
                 self.init_program()
-        if self.controller.root:
+        if self.controller and self.controller.root:
             self.controller.root.update()
         if self.title == "Map":
             # Check for new seed position
