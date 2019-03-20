@@ -74,6 +74,13 @@
         (get pitch note)
         0)))
 
+(defn threshold-limit [selector threshold]
+  (fn [input]
+    (setv val (selector input))
+    (if (< val threshold)
+        0.0
+        val)))
+
 (defn Modulator [selector modulator &optional [init 0.0]]
   (setv prev init)
   (fn [input]
@@ -89,9 +96,9 @@
     (midi-pitch-max (midi-pitch-selector (midi-track-selector track-name)))
     (ratio-decay decay)))
 
-(defn AudioModulator [band &optional peak [decay 10]]
+(defn AudioModulator [band &optional peak [threshold 0.0] [decay 10]]
   (Modulator
-    (band-selector (if peak np.max np.mean) (first band) (last band))
+    (threshold-limit (band-selector (if peak np.max np.mean) (first band) (last band)) threshold)
     (ratio-decay decay)))
 
 (defn AudioPeakModulator [band &optional [decay 10]]
