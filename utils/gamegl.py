@@ -80,7 +80,7 @@ def fragment_loader(fragment: str, export: bool, filename=None):
                     param_type = line.split()[1]
                     if param_type == "float":
                         val = 0.
-                    elif param_type == "vec2":
+                    elif param_type in ("vec2", "dvec2"):
                         val = [0., 0.]
                     elif param_type == "vec3":
                         val = [0., 0., 0.]
