@@ -521,6 +521,8 @@ def usage():
     parser = argparse.ArgumentParser()
     parser.add_argument("--paused", action='store_true')
     parser.add_argument("--record", metavar="DIR", help="record frame in png")
+    parser.add_argument("--super-sampling", type=int, default=1,
+                        help="super sampling mode")
     parser.add_argument("--wav", metavar="FILE")
     parser.add_argument("--midi", metavar="FILE")
     parser.add_argument("--midi_skip", type=int, default=0)
