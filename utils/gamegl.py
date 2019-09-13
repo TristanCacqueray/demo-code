@@ -525,6 +525,8 @@ void main() {
 
 def usage():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--list-sound-devices", action='store_true')
+    parser.add_argument("--sound-device")
     parser.add_argument("--paused", action='store_true')
     parser.add_argument("--record", metavar="DIR", help="record frame in png")
     parser.add_argument("--super-sampling", type=int, default=1,
@@ -541,6 +543,18 @@ def usage():
     parser.add_argument("fragment", help="fragment file",
                         nargs='?')
     args = parser.parse_args()
+
+    if args.list_sound_devices:
+        import sounddevice
+        print(sounddevice.query_devices())
+        exit(0)
+
+    if args.sound_device or os.environ.get("DEMO_SD"):
+        import sounddevice
+        if args.sound_device:
+            sounddevice.default.device = int(args.sound_device)
+        else:
+            sounddevice.default.device = int(os.environ["DEMO_SD"])
 
     if args.params is not None:
         if os.path.exists(args.params):

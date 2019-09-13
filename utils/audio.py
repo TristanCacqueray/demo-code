@@ -24,7 +24,7 @@ class AudioPlayer:
         self.queue = queue.Queue(maxsize=25)
         self.stream = sd.RawOutputStream(
             samplerate=samplerate, blocksize=blocksize,
-            device="default", channels=channels, dtype='int16',
+            channels=channels, dtype='int16',
             latency='low',
             callback=self.callback, finished_callback=self.finished)
 
@@ -55,7 +55,7 @@ class AudioInput:
     def __init__(self, fps, freq):
         self.queue = queue.Queue(maxsize=25)
         self.stream = sd.InputStream(
-            device="default", channels=1, dtype='int16',
+            channels=1, dtype='int16',
             samplerate=freq, blocksize=freq // fps,
             callback=self.callback)
 

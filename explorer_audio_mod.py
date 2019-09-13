@@ -34,6 +34,8 @@ import utils.modulations as M
 def usage(argv=sys.argv[1:]):
     parser = argparse.ArgumentParser(
         description="Explore audio and adjust mod")
+    parser.add_argument("--list-sound-devices", action='store_true')
+    parser.add_argument("--sound-device")
     parser.add_argument("--size", type=float,
                         default=float(os.environ.get("SIZE", 7)),
                         help="render size x for (160x90) * x")
@@ -46,6 +48,18 @@ def usage(argv=sys.argv[1:]):
     parser.add_argument("--wav")
     parser.add_argument("--skip", default=0, type=int)
     args = parser.parse_args(argv)
+    if args.list_sound_devices:
+        import sounddevice
+        print(sounddevice.query_devices())
+        exit(0)
+
+    if args.sound_device or os.environ.get("DEMO_SD"):
+        import sounddevice
+        if args.sound_device:
+            sounddevice.default.device = int(args.sound_device)
+        else:
+            sounddevice.default.device = int(os.environ["DEMO_SD"])
+
     args.winsize = list(map(lambda x: int(x * args.size), [160,  90]))
     logging.basicConfig(
         format='%(asctime)s %(levelname)-5.5s %(name)s - %(message)s',
