@@ -79,6 +79,9 @@ class Midi:
         if os.path.exists("%s.pck" % fn):
             self.tracks = pickle.load(open("%s.pck" % fn, "rb"))
             return
+        if not fn:
+            self.tracks = []
+            return
         with open(fn, 'rb') as f:
             # Read header
             b = f.read(4)
