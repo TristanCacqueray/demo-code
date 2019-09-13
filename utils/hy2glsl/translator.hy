@@ -1,23 +1,21 @@
-;; hy2glsl -- Hy to GLSL Language Translator
+;; Copyright 2019 tristanC
+;; This file is part of hy2glsl.
 ;;
-;; This library is free software: you can redistribute it and/or
-;; modify it under the terms of the GNU Lesser General Public License
-;; as published by the Free Software Foundation, either version 3 of
-;; the License, or (at your option) any later version.
+;; Hy2glsl is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
 ;;
-;; This library is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-;; Lesser General Public License for more details.
+;; Hy2glsl is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
 ;;
-;; You should have received a copy of the GNU Lesser General Public
-;; License along with this program. If not, see <http://www.gnu.org/licenses/>.
+;; You should have received a copy of the GNU General Public License
+;; along with Hy2glsl.  If not, see <https://www.gnu.org/licenses/>.
 
-;; Missing core procedures discussed in: https://github.com/hylang/hy/pull/1762
 (defn expression? [e]
-  (instance? HyExpression e))
-(defn list? [l]
-  (instance? HyList l))
+  (or (instance? list e) (instance? HyExpression e)))
 
 (setv gl-types '[int float vec2 vec3 vec4 mat2 mat3 mat4]
       gl-proc {'dot 'float 'atan 'float 'cos 'float 'sin 'float}
@@ -59,7 +57,44 @@
     (if (= (get builtin 1) name)
         (return builtin))))
 
-(defn hy2glsl [code]
+(defn split-keywords [expr]
+  "Return (, expr keyword-dict) tuple"
+  (setv result []
+        keywords {}
+        pos 0)
+  (while (< pos (len expr))
+    (if (keyword? (get expr pos))
+        ;; TODO: fail safe when keyword value doesn't exists.
+        (do
+          (assoc keywords (get expr pos) (get expr (inc pos)))
+          (setv pos (inc pos)))
+        (.append result (get expr pos)))
+    (setv pos (inc pos)))
+  (, result keywords))
+
+(defn getd [col key &optional [val None]]
+  "Get with optional default"
+  (if (in key col)
+      (get col key)
+      val))
+
+(defn trim-col [col]
+  "Trim a collection of the empty values"
+  (setv res {})
+  (for [[k v] (.items col)]
+    (unless (none? v) (assoc res k v)))
+  res)
+
+(defn mutable-expressions [code]
+  "Convert HyExpressions to mutable list"
+  (setv mutable-code [])
+  (for [exp code]
+    (.append mutable-code (if (instance? HyExpression exp)
+                              (mutable-expressions exp)
+                              exp)))
+  mutable-code)
+
+(defn hy2glsl [code &optional params]
   (setv shader []
         function-arguments-types {}
         used-builtins {})
@@ -147,7 +182,7 @@
              (setv builtins (list (.values used-builtins)))
              (.clear used-builtins)
              (for [e builtins]
-               (translate e env)))
+               (translate (mutable-expressions e) env)))
            (cond
              ;; Hy Functions/variables to glsl
              [(= operator 'defn)
@@ -253,9 +288,22 @@
               #_(comment
                   Syntax: (uniform type name)
                   )
-              (define (mangle (get expr 2)) (get expr 1) :env gl-env)
-              (append "uniform " (get expr 1)
-                      " " (mangle (get expr 2)) ";\n")]
+              (setv [expr keywords] (split-keywords expr)
+                    uparams (trim-col {
+                                       'type (get expr 1)
+                                       'name (mangle (get expr 2))
+                                       'default (getd keywords ':default)
+                                       'min (getd keywords ':min)
+                                       'max (getd keywords ':max)
+                                       }))
+              (define (get uparams 'name) (get uparams 'type) :env gl-env)
+              (when (not (none? params))
+                (assoc params (get uparams 'name) uparams))
+              (append "uniform " (get uparams 'type) " "
+                      (get uparams 'name) ";")
+              (unless (none? (getd uparams 'default))
+                (append " // " (getd uparams 'default) ";"))
+              (append "\n")]
              [(= operator 'attribute)
               #_(comment
                   Syntax: (attribute type name)
@@ -375,7 +423,7 @@
                     (infer-type operand)))
                 (setv builtin (builtin? operator))
                 (when (and builtin (not (in operator used-builtins)))
-                  (translate builtin env)
+                  (translate (mutable-expressions builtin) env)
                   (assoc used-builtins operator builtin)))
               (append (mangle operator) "(")
               (when (> (len expr) 1)
@@ -407,7 +455,7 @@
 
   (defn trim-none [code]
     "Remove None expression from macro expansion"
-    (setv result (HyExpression))
+    (setv result [])
     (for [expr code]
       (when (= expr None)
         (continue))
@@ -418,7 +466,7 @@
   (setv code (trim-none code))
 
   ;; Infer function argument type in reverse order
-  (setv reverse (HyExpression) func-pos 0)
+  (setv reverse [] func-pos 0)
   (for [expr code]
     ;; Keep global at the top, function at the bottom in reverse order
     (setv operator (get expr 0))
