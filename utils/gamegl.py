@@ -66,9 +66,13 @@ def fragment_loader(fragment: str, export: bool, filename=None):
     final = []
     uniforms = {"mods": {}}
     shadertoy = False
+    version = "120"
 
     def loader(lines: list):
         for line in lines:
+            if line.startswith("#version"):
+                nonlocal version
+                version = line.split()[1]
             if line.startswith("#include"):
                 loader(open(os.path.join(os.path.dirname(filename),
                                          line.split()[1][1:-1])
@@ -132,7 +136,7 @@ uniform float iTime;
 void mainImage(out vec4 fragColor, in vec2 fragCoord);
 void main(void) {mainImage(gl_FragColor, gl_FragCoord.xy);}""")
     loader(fragment.split('\n'))
-    return "\n".join(final), uniforms
+    return "\n".join(final), uniforms, version
 
 
 class FragmentShader(Window):
@@ -229,7 +233,8 @@ void main() {
             fn = None
             self.fragment_mtime = None
 
-        self.fragment, self._params = fragment_loader(fragment, export, fn)
+        self.fragment, self._params, self.version = fragment_loader(
+            fragment, export, fn)
         self.iTime = "iTime" in self.fragment
         self.iMouse = "iMouse" in self.fragment
         if export:
@@ -242,7 +247,8 @@ void main() {
         #print("---[")
         #print(self.fragment)
         #print("]---")
-        self.program = gloo.Program(self.vertex, self.fragment, count=4, version="450")
+        self.program = gloo.Program(
+            self.vertex, self.fragment, count=4, version=self.version)
         self.program['position'] = [(-1, -1), (-1, +1), (+1, -1), (+1, +1)]
         if self.title == "Map":
             self.point_history = collections.deque(maxlen=250)
