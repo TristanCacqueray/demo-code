@@ -384,10 +384,10 @@ void main() {
         elif self.iMouse:
             self.iMouse = x, self.winsize[1] - y, self.buttons[button], 0
             self.program["iMouse"] = self.iMouse
-            if "pitch" in self.params:
-                self.params["pitch"] -= dy / 50
-            if "yaw" in self.params:
-                self.params["yaw"] += dx / 50
+        if "pitch" in self.params:
+            self.params["pitch"] -= dy / 50
+        if "yaw" in self.params:
+            self.params["yaw"] += dx / 50
         self.draw = True
 
     def normalizeCoord(self, x, y):
