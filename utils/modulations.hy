@@ -56,6 +56,10 @@
           (return (.get event "pitch"))))))
 
 ; Higher level procedures
+(defn filter-selector [filter-name]
+  (fn [input]
+    (/ (.max (get input.data filter-name)) (** 2 15))))
+
 (defn band-selector [proc lower-freq upper-freq]
   (fn [input]
     (setv band (cut input.band lower-freq upper-freq))
@@ -111,4 +115,9 @@
 (defn NoteModulator [track-name note &optional [decay 10]]
   (Modulator
     (midi-note (midi-pitch-selector (midi-track-selector track-name)) note)
+    (ratio-decay decay)))
+
+(defn AudioFilterModulator [filter-name &optional [decay 10]]
+  (Modulator
+    (filter-selector filter-name)
     (ratio-decay decay)))

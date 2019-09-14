@@ -88,6 +88,8 @@ class Audio:
             self.input = None
             self.wav = ifile.read(-1, dtype='int16')
         self.play = play
+        self.freq = freq
+        self.channels = channels
         if freq % fps != 0:
             raise RuntimeError("Can't load %d Hz at %d fps" % (freq, fps))
         self.blocksize = freq // fps
@@ -125,14 +127,32 @@ class NoAudio:
 
 class Filter:
     def __init__(self, bpass, bstop, ftype='butter'):
-        self.b, self.a = fd.iirdesign(bpass, bstop, 1, 100, ftype=ftype,
-                                      output='ba')
+        self.b, self.a = fd.iirdesign(
+            bpass, bstop, 1, 100, ftype=ftype, output='ba')
         self.ic = st.lfiltic(self.b, self.a, (0.0,))
 
     def filter(self, data):
         res = st.lfilter(self.b, self.a, data, zi=self.ic)
         self.ic = res[-1]
         return res[0]
+
+
+class Filters:
+    def __init__(self, filters={}):
+        self.filters = filters
+        self.data = {}
+
+    def update(self, data):
+        # Convert to mono
+        mono_data = data.sum(axis=1) / 2
+        for filter_name, filter_obj in self.filters.items():
+            self.data[filter_name] = filter_obj.filter(mono_data)
+
+    def play_data(self, filter_name):
+        # Convert back to stereo, todo: fix why sd doesn't play mono correctly
+        data = self.data[filter_name]
+        return np.hstack(
+            (data.reshape(-1, 1), data.reshape(-1,1))).astype(np.int16)
 
 
 class SpectroGram:
