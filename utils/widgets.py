@@ -17,6 +17,61 @@ from . import hsv
 from . game import Window
 
 
+MAX_SHORT = float((2 ** (2 * 8)) / 2)
+
+
+class WavGraph(Window):
+    def __init__(self, window_size, frame_size):
+        Window.__init__(self, window_size)
+        self.frame_size = frame_size
+        self.wav_step = self.frame_size // self.window_size[0]
+        self.y_range = self.window_size[1] // 2
+        print(self.window_size[0])
+
+    def render(self, buf):
+        pixels = np.zeros(self.length, dtype='i4').reshape(*self.window_size)
+        for x in range(0, self.window_size[0]):
+            mbuf = np.mean(
+                buf[x * self.wav_step:(x + 1) * self.wav_step], axis=1)
+            if not len(mbuf):
+                break
+            left = mbuf[0]
+            right = mbuf[1]
+            mono = np.mean(mbuf)
+            for point, offset, color in (
+                    (left, -10, 0xf10000),
+                    (right, +10, 0x00f100),
+                    (mono, 0, 0xf1)):
+                amp = int(self.y_range +
+                          offset +
+                          ((self.y_range - abs(offset)) / 2.) * point /
+                          (MAX_SHORT/2.))
+                pixels[x][amp] = color
+        self.pixels = pixels
+
+    def render_mono(self, buf):
+        pixels = np.zeros(self.length, dtype='i4').reshape(*self.window_size)
+        for x in range(0, self.window_size[0]):
+            mbuf = np.mean(
+                buf[x * self.wav_step:(x + 1) * self.wav_step], axis=1)
+            if not len(mbuf):
+                break
+            mono = np.mean(mbuf)
+            amp = int(self.y_range + self.y_range * mono / (MAX_SHORT / 2.0))
+            pixels[x][amp] = 0xf1
+        self.pixels = pixels
+
+    def render_monobuf(self, buf):
+        pixels = np.zeros(self.length, dtype='i4').reshape(*self.window_size)
+        for x in range(0, self.window_size[0]):
+            mono = np.mean(
+                buf[x * self.wav_step:(x + 1) * self.wav_step]) / MAX_SHORT
+            amp = int(self.y_range + self.y_range * mono)
+            pixels[x][amp] = 0xf1
+        self.pixels = pixels
+
+
+
 class Waterfall(Window):
     def __init__(self, window_size, zoom=1):
         Window.__init__(self, window_size)
