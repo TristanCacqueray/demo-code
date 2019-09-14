@@ -81,9 +81,9 @@ def main():
         mpass=utils.audio.FilterIIR((0.1, 0.2),  (0.05, 0.25), ftype='ellip'),
         hpass=utils.audio.FilterIIR(0.3, 0.2, ftype='ellip')))
 
-    lmod = M.AudioFilterModulator("lpass")
+    lmod = M.AudioFilterModulator("lpass") #, 15)
     mmod = M.AudioFilterModulator("mpass")
-    hmod = M.AudioFilterModulator("hpass")
+    hmod = M.AudioFilterModulator("hpass") #, 10)
 
     x, y = args.winsize
     wav_graph = utils.widgets.WavGraph((2*x//3, y//2), audio.blocksize)

@@ -57,7 +57,9 @@ class WavGraph(Window):
             if not len(mbuf):
                 break
             mono = np.mean(mbuf)
-            amp = int(self.y_range + self.y_range * mono / (MAX_SHORT / 2.0))
+            amp = min(
+                int(self.y_range + self.y_range * mono / (MAX_SHORT / 2.0)),
+                self.y_range * 2)
             pixels[x][amp] = 0xf1
         self.pixels = pixels
 
