@@ -15,6 +15,7 @@ import queue
 import sounddevice as sd
 import soundfile as sf
 import numpy as np
+import scipy.signal
 import scipy.signal.filter_design as fd
 import scipy.signal.signaltools as st
 
@@ -125,7 +126,16 @@ class NoAudio:
         return [(0, 0)]
 
 
-class Filter:
+class FilterButter:
+    def __init__(self, freqs, btype, freq):
+        self.sos = scipy.signal.butter(5, freqs, btype, fs=freq, output='sos')
+
+    def filter(self, data):
+        d = scipy.signal.sosfilt(self.sos, data)
+        return d
+
+
+class FilterIIR:
     def __init__(self, bpass, bstop, ftype='butter'):
         self.b, self.a = fd.iirdesign(
             bpass, bstop, 1, 100, ftype=ftype, output='ba')
