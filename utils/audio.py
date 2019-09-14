@@ -91,6 +91,7 @@ class Audio:
         if freq % fps != 0:
             raise RuntimeError("Can't load %d Hz at %d fps" % (freq, fps))
         self.blocksize = freq // fps
+        self.audio_frame_size = freq // fps
         self.audio_frame_number = int(len(self.wav) / freq * fps)
         self.audio_frames_path = np.linspace(
             0, len(self.wav), int(len(self.wav) / freq * fps),
