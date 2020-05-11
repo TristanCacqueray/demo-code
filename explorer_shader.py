@@ -44,7 +44,8 @@ def usage(argv=sys.argv[1:]):
             args.params = json.loads(open(args.params))
         else:
             args.params = json.loads(args.params)
-
+    if args.record and not os.path.exists(args.record):
+        os.makedirs(args.record)
     args.winsize = list(map(lambda x: int(x * args.size), [160,  90]))
     return args
 
