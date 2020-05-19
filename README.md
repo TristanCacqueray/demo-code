@@ -12,6 +12,12 @@ $ . ~/demo-code-venv/bin/activate
 (venv) $ pip3 install hy2glsl pyyaml scipy soundfile sounddevice image pyopengl pyopencl Cython scipy pygame numpy hy
 # Glumpy needs to be install separately
 (venv) $ pip3 install glumpy
+# Ensure glfw-dev package is installed
+(venv) $ pkg-config --libs glfw3
+[Print -lglfw]
+# Ensure tkinter binding is working
+(venv) $ python3 -m "tkinter"
+[Show a tk window]
 ```
 
 Check audio input from alsa:
